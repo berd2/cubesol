@@ -45,8 +45,8 @@
             background-color: #666;
             transform: translateY(-2px);
         }
-        #scramble-btn { background-color: #e67e22; }
-        #undo-btn { background-color: #8e44ad; }
+        #scramble-btn { background-color: #d35400; }
+        #undo-btn { background-color: #732d91; }
         #reset-view-btn { background-color: #7f8c8d; }
         #toggle-view-btn { background-color: #34495e; }
         #solve-2step-lbl-btn { background-color: #2471a3; }
@@ -256,6 +256,16 @@
         <button id="toggle-view-btn">Single view</button>
         <button id="save-result-btn">Save Result</button>
         <button id="show-help-btn">Help</button>
+        <div style="color: #ecf0f1; padding: 10px 15px; font-size: 13px; display: flex; justify-content: space-between; align-items: center;">
+            Rotate speed:
+            <select id="speed-select" style="background: #333; color: white; border: 1px solid #555; border-radius: 4px; padding: 2px;">
+                <option value="100">FAST</option>
+                <option value="200">fast</option>
+                <option value="300" selected>normal</option>
+                <option value="400">slow</option>
+                <option value="500">SLOW</option>
+            </select>
+        </div>
     </div>
 
     <div id="help-modal">
@@ -1658,6 +1668,7 @@
         }
 
         let manualMoveHistory = [];
+        let rotateSpeed = 300;
 
         function getInverseMoveName(name) {
             if (!name) return "";
@@ -1767,6 +1778,9 @@
             document.getElementById('toggle-view-btn').addEventListener('click', toggleViewMode);
             document.getElementById('undo-btn').addEventListener('click', undo);
             document.getElementById('stop-btn').addEventListener('click', stopSolving);
+            document.getElementById('speed-select').addEventListener('change', (e) => {
+                rotateSpeed = parseInt(e.target.value);
+            });
             
             const menuBtn = document.getElementById('menu-btn');
             const hamburgerMenu = document.getElementById('hamburger-menu');
@@ -1889,8 +1903,8 @@
             }
 
             new TWEEN.Tween(pivot.rotation)
-                .to(targetRotation, 300)
-                .easing(TWEEN.Easing.Quadratic.Out)
+                .to(targetRotation, rotateSpeed)
+                .easing(TWEEN.Easing.Cubic.Out)
                 .onComplete(() => {
                     layerCubies.forEach(c => {
                         cubeGroup.attach(c);
