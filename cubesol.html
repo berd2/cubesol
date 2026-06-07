@@ -1638,6 +1638,25 @@
             roundedSquareTexture = new THREE.CanvasTexture(canvas);
         }
 
+        let manualMoveHistory = [];
+
+        function getInverseMoveName(name) {
+            if (!name) return "";
+            if (name.endsWith("'")) {
+                return name.slice(0, -1);
+            } else {
+                return name + "'";
+            }
+        }
+
+        function undo() {
+            if (isAnimating || solverQueue.length > 0 || manualMoveHistory.length === 0) return;
+            const lastMove = manualMoveHistory.pop();
+            const invDir = -lastMove.direction;
+            const invName = getInverseMoveName(lastMove.name);
+            rotateLayer(lastMove.axis, lastMove.layer, invDir, true, `[Undo] ${invName}`);
+        }
+
         function toggleViewMode() {
             isDualView = !isDualView;
             updateViewLayout();
@@ -1717,9 +1736,7 @@
             document.getElementById('save-result-btn').addEventListener('click', saveLastSolveResult);
             document.getElementById('reset-view-btn').addEventListener('click', resetCameraView);
             document.getElementById('toggle-view-btn').addEventListener('click', toggleViewMode);
-            document.getElementById('undo-btn').addEventListener('click', () => {
-                alert("In algorithmic solver mode, use 'Solve 1-Step' to progress towards the goal state.");
-            });
+            document.getElementById('undo-btn').addEventListener('click', undo);
             
             const menuBtn = document.getElementById('menu-btn');
             const hamburgerMenu = document.getElementById('hamburger-menu');
@@ -1909,6 +1926,7 @@
 
         function scramble() {
             solverQueue = [];
+            manualMoveHistory = [];
             totalSolveMoves = 0;
             totalSolveTurns = 0;
             completedSolveTurns = 0;
@@ -2002,6 +2020,7 @@ function getMoveNameFromRotation(base, direction) {
 
         function solveAll() {
             if (isAnimating) return;
+            manualMoveHistory = [];
             document.getElementById('move-list').innerText = "[Solve All] Calculating optimal solution...";
             // 무거운 계산(첫 호출 시 테이블 생성 포함)이 UI 페인트를 막지 않도록 한 틱 뒤 실행
             setTimeout(() => {
@@ -2022,6 +2041,7 @@ function getMoveNameFromRotation(base, direction) {
 
         function solve2StepLBL() {
             if (isAnimating) return;
+            manualMoveHistory = [];
             const moves = getSolverSequence();
             if (moves.length > 0) {
                 stepLabel = 'LBL';
@@ -2038,6 +2058,7 @@ function getMoveNameFromRotation(base, direction) {
 
         function solveAllLBL() {
             if (isAnimating) return;
+            manualMoveHistory = [];
             solverQueue = getSolverSequence();
             if (solverQueue.length === 0) {
                 document.getElementById('move-list').innerText = "Already solved";
@@ -2055,6 +2076,7 @@ function getMoveNameFromRotation(base, direction) {
 
         function solve1StepKociemba() {
             if (isAnimating) return;
+            manualMoveHistory = [];
             document.getElementById('move-list').innerText = "[Kociemba] Calculating...";
             setTimeout(() => {
                 const moves = getOptimalSequence();
@@ -2200,6 +2222,12 @@ function getMoveNameFromRotation(base, direction) {
                     moveName = MOVES.find(m => m.axis === bestMove.axis && m.layer === bestMove.layer)?.name || "";
                 }
                 const displayName = moveName ? (moveName + (bestMove.dir === -1 ? "'" : "")) : "";
+                manualMoveHistory.push({
+                    axis: bestMove.axis,
+                    layer: bestMove.layer,
+                    direction: bestMove.dir,
+                    name: displayName
+                });
                 rotateLayer(bestMove.axis, bestMove.layer, bestMove.dir, true, displayName);
             }
         }
