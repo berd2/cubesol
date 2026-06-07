@@ -78,7 +78,7 @@ Saves scramble and solution metadata:
   }
 }
 ```
-
+![Screen](CubeSol.png "CubeSol Screen")
 ***
 
 # 3D 루빅스 큐브 시뮬레이터 & 솔버 (Korean)
