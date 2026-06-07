@@ -1,0 +1,2083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Rubik's Cube Simulator - Manual Control</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #222;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #ui {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            z-index: 10;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        button {
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            background-color: #444;
+            color: white;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        button:hover {
+            background-color: #666;
+            transform: translateY(-2px);
+        }
+        #scramble-btn { background-color: #e67e22; }
+        #undo-btn { background-color: #8e44ad; }
+        #reset-view-btn { background-color: #7f8c8d; }
+        #solve-2step-lbl-btn { background-color: #2471a3; }
+        #solve-all-lbl-btn   { background-color: #1a5276; }
+        #solve-1step-kociemba-btn { background-color: #1e8449; }
+        #solve-all-kociemba-btn   { background-color: #27ae60; }
+        .solver-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(255,255,255,0.05);
+            padding: 6px 10px;
+            border-radius: 8px;
+        }
+        .solver-label {
+            color: #aaa;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            letter-spacing: 0.5px;
+        }
+        
+        .manual-controls {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 5px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .manual-btn {
+            padding: 5px 10px;
+            font-size: 12px;
+            min-width: 40px;
+        }
+
+        #history-display {
+            position: absolute;
+            top: 100px;
+            left: 20px;
+            color: #aaa;
+            font-size: 14px;
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
+            max-width: 250px;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ccc;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
+        /* Help Modal Styles */
+        #help-btn {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: #3498db;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        #help-modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        #help-content {
+            background: #333;
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            line-height: 1.6;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        #help-content h3 { margin-top: 0; color: #3498db; }
+        #help-content ul { padding-left: 20px; }
+        #close-help {
+            display: block;
+            margin: 20px auto 0;
+            background: #555;
+            padding: 8px 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h2>3D Rubik's Cube Simulator</h2>
+        <p>Drag Cubies (1-9): Rotate Layer | Drag Background: Rotate Camera</p>
+    </div>
+    <div id="history-display">
+        State: <br><span id="move-list">-</span>
+    </div>
+    <div id="ui">
+        <div class="button-group">
+            <button id="scramble-btn">Scramble</button>
+            <button id="undo-btn">Undo</button>
+            <button id="reset-view-btn">Default View</button>
+            <button id="save-result-btn">Save Result</button>
+        </div>
+        <div class="button-group">
+            <div class="solver-group">
+                <span class="solver-label">LBL</span>
+                <button id="solve-2step-lbl-btn">2-Step</button>
+                <button id="solve-all-lbl-btn">Solve All</button>
+            </div>
+            <div class="solver-group">
+                <span class="solver-label">Kociemba</span>
+                <button id="solve-1step-kociemba-btn">1-Step</button>
+                <button id="solve-all-kociemba-btn">Solve All</button>
+            </div>
+        </div>
+    </div>
+
+    <button id="help-btn">?</button>
+
+    <div id="help-modal">
+        <div id="help-content">
+            <h3>🎮 Cube Controls Guide</h3>
+            <ul>
+                <li><strong>Rotate Layer</strong>: Drag any cubie (1-9) in the desired direction.</li>
+                <li><strong>Corner Cubies (1,3,7,9)</strong>: Free to rotate in two adjacent directions.</li>
+                <li><strong>Edge Cubies (2,4,6,8)</strong>: Restricted to one specific direction.
+                    <ul>
+                        <li>Top/Bottom Edges (2,8): Drag Left/Right (Horizontal)</li>
+                        <li>Left/Right Edges (4,6): Drag Up/Down (Vertical)</li>
+                    </ul>
+                </li>
+                <li><strong>Rotate Camera</strong>: Drag the empty background to adjust each view individually.</li>
+                <li><strong>Special Features</strong>:
+                    <ul>
+                        <li><strong>Scramble</strong>: Instantly randomizes the cube.</li>
+                        <li><strong>Undo/Hint</strong>: Undo recent manual moves or get the next step to solve.</li>
+                    </ul>
+                </li>
+            </ul>
+            <button id="close-help">Close</button>
+        </div>
+    </div>
+
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.150.1/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.150.1/examples/jsm/",
+                "tween": "https://cdnjs.cloudflare.com/ajax/libs/tween.js/20.0.0/tween.esm.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import TWEEN from 'tween';
+
+        // --- CubeSolver Class Inlined ---
+        class CubeSolver {
+            constructor(cubies) {
+                this.cubies = cubies;
+                this.stickers = [];
+                this.moves = [];
+                this.centers = {};
+            }
+
+            captureState() {
+                this.stickers = [];
+                const directions = [
+                    { n: new THREE.Vector3(1, 0, 0), name: 'R' },
+                    { n: new THREE.Vector3(-1, 0, 0), name: 'L' },
+                    { n: new THREE.Vector3(0, 1, 0), name: 'U' },
+                    { n: new THREE.Vector3(0, -1, 0), name: 'D' },
+                    { n: new THREE.Vector3(0, 0, 1), name: 'F' },
+                    { n: new THREE.Vector3(0, 0, -1), name: 'B' }
+                ];
+
+                this.cubies.forEach(cubie => {
+                    const worldPos = new THREE.Vector3();
+                    cubie.getWorldPosition(worldPos);
+                    const x = Math.round(worldPos.x);
+                    const y = Math.round(worldPos.y);
+                    const z = Math.round(worldPos.z);
+
+                    const materials = cubie.material;
+                    directions.forEach((d, idx) => {
+                        const worldDir = d.n.clone().applyQuaternion(cubie.quaternion);
+                        const wx = Math.round(worldDir.x);
+                        const wy = Math.round(worldDir.y);
+                        const wz = Math.round(worldDir.z);
+
+                        if (wx !== 0 || wy !== 0 || wz !== 0) {
+                            const color = materials[idx].color.getHex();
+                            this.stickers.push({
+                                pos: new THREE.Vector3(x, y, z),
+                                norm: new THREE.Vector3(wx, wy, wz),
+                                color: color
+                            });
+
+                            if (Math.abs(x) + Math.abs(y) + Math.abs(z) === 1 && x === wx && y === wy && z === wz) {
+                                const faceName = directions.find(dir => dir.n.x === wx && dir.n.y === wy && dir.n.z === wz).name;
+                                this.centers[faceName] = color;
+                            }
+                        }
+                    });
+                });
+            }
+
+            addMove(name) {
+                this.moves.push(name);
+                const isPrime = name.endsWith("'");
+                const isDouble = name.endsWith("2");
+                const base = name[0];
+                
+                let dir = 1;
+                if (isPrime) dir = -1;
+                let count = isDouble ? 2 : 1;
+
+                for (let i = 0; i < count; i++) {
+                    this.applyVirtualRotation(base, dir);
+                }
+            }
+
+            applyVirtualRotation(base, dir) {
+                const axisMap = {
+                    'R': { axis: 'x', val: 1 }, 'L': { axis: 'x', val: -1 },
+                    'U': { axis: 'y', val: 1 }, 'D': { axis: 'y', val: -1 },
+                    'F': { axis: 'z', val: 1 }, 'B': { axis: 'z', val: -1 }
+                };
+                const def = axisMap[base];
+                if (!def) return;
+
+                const matrix = new THREE.Matrix4();
+                let rotDir = 1;
+                if (base === 'U' || base === 'R' || base === 'F') rotDir = -1;
+                if (base === 'D' || base === 'L' || base === 'B') rotDir = 1;
+                rotDir *= dir;
+
+                if (def.axis === 'x') matrix.makeRotationX((Math.PI / 2) * rotDir);
+                if (def.axis === 'y') matrix.makeRotationY((Math.PI / 2) * rotDir);
+                if (def.axis === 'z') matrix.makeRotationZ((Math.PI / 2) * rotDir);
+
+                this.stickers.forEach(s => {
+                    if (Math.round(s.pos[def.axis]) === def.val) {
+                        s.pos.applyMatrix4(matrix);
+                        s.norm.applyMatrix4(matrix);
+                        s.pos.x = Math.round(s.pos.x); s.pos.y = Math.round(s.pos.y); s.pos.z = Math.round(s.pos.z);
+                        s.norm.x = Math.round(s.norm.x); s.norm.y = Math.round(s.norm.y); s.norm.z = Math.round(s.norm.z);
+                    }
+                });
+            }
+
+            getColor(px, py, pz, nx, ny, nz) {
+                const s = this.stickers.find(s => 
+                    s.pos.x === px && s.pos.y === py && s.pos.z === pz &&
+                    s.norm.x === nx && s.norm.y === ny && s.norm.z === nz
+                );
+                return s ? s.color : null;
+            }
+
+            isCubeSolved() {
+                const faceByNormal = {
+                    '1,0,0': 'R',
+                    '-1,0,0': 'L',
+                    '0,1,0': 'U',
+                    '0,-1,0': 'D',
+                    '0,0,1': 'F',
+                    '0,0,-1': 'B'
+                };
+                return this.stickers.every(s => {
+                    if (s.pos.x * s.norm.x + s.pos.y * s.norm.y + s.pos.z * s.norm.z !== 1) return true;
+                    const face = faceByNormal[`${s.norm.x},${s.norm.y},${s.norm.z}`];
+                    return face && s.color === this.centers[face];
+                });
+            }
+
+            isFirstTwoLayersSolved() {
+                const faceByNormal = {
+                    '1,0,0': 'R',
+                    '-1,0,0': 'L',
+                    '0,1,0': 'U',
+                    '0,-1,0': 'D',
+                    '0,0,1': 'F',
+                    '0,0,-1': 'B'
+                };
+                return this.stickers.every(s => {
+                    if (s.pos.x * s.norm.x + s.pos.y * s.norm.y + s.pos.z * s.norm.z !== 1) return true;
+                    if (s.pos.y === -1) return true;
+                    const face = faceByNormal[`${s.norm.x},${s.norm.y},${s.norm.z}`];
+                    return face && s.color === this.centers[face];
+                });
+            }
+
+            findEdge(c1, c2) {
+                const edges = [
+                    { px: 1, py: 1, pz: 0, n1: [1,0,0], n2: [0,1,0] }, { px: -1, py: 1, pz: 0, n1: [-1,0,0], n2: [0,1,0] },
+                    { px: 0, py: 1, pz: 1, n1: [0,0,1], n2: [0,1,0] }, { px: 0, py: 1, pz: -1, n1: [0,0,-1], n2: [0,1,0] },
+                    { px: 1, py: -1, pz: 0, n1: [1,0,0], n2: [0,-1,0] }, { px: -1, py: -1, pz: 0, n1: [-1,0,0], n2: [0,-1,0] },
+                    { px: 0, py: -1, pz: 1, n1: [0,0,1], n2: [0,-1,0] }, { px: 0, py: -1, pz: -1, n1: [0,0,-1], n2: [0,-1,0] },
+                    { px: 1, py: 0, pz: 1, n1: [1,0,0], n2: [0,0,1] }, { px: -1, py: 0, pz: 1, n1: [-1,0,0], n2: [0,0,1] },
+                    { px: 1, py: 0, pz: -1, n1: [1,0,0], n2: [0,0,-1] }, { px: -1, py: 0, pz: -1, n1: [-1,0,0], n2: [0,0,-1] }
+                ];
+
+                for (let e of edges) {
+                    const colorA = this.getColor(e.px, e.py, e.pz, ...e.n1);
+                    const colorB = this.getColor(e.px, e.py, e.pz, ...e.n2);
+                    if ((colorA === c1 && colorB === c2) || (colorA === c2 && colorB === c1)) {
+                        return { pos: new THREE.Vector3(e.px, e.py, e.pz), colorA: colorA, colorB: colorB, nA: e.n1, nB: e.n2 };
+                    }
+                }
+                return null;
+            }
+
+            findCorner(c1, c2, c3) {
+                const corners = [
+                    { px: 1, py: 1, pz: 1 }, { px: -1, py: 1, pz: 1 }, { px: 1, py: 1, pz: -1 }, { px: -1, py: 1, pz: -1 },
+                    { px: 1, py: -1, pz: 1 }, { px: -1, py: -1, pz: 1 }, { px: 1, py: -1, pz: -1 }, { px: -1, py: -1, pz: -1 }
+                ];
+                const target = [c1, c2, c3].sort();
+                for (let c of corners) {
+                    const col1 = this.getColor(c.px, c.py, c.pz, Math.sign(c.px), 0, 0);
+                    const col2 = this.getColor(c.px, c.py, c.pz, 0, Math.sign(c.py), 0);
+                    const col3 = this.getColor(c.px, c.py, c.pz, 0, 0, Math.sign(c.pz));
+                    const current = [col1, col2, col3].sort();
+                    if (target[0] === current[0] && target[1] === current[1] && target[2] === current[2]) {
+                        return { pos: new THREE.Vector3(c.px, c.py, c.pz) };
+                    }
+                }
+                return null;
+            }
+
+            solve() {
+                this.moves = [];
+                this.captureState();
+                try {
+                    this.solveWhiteCross();
+                    this.solveWhiteCorners();
+                    this.solveSecondLayer();
+                    this.solveYellowCross();
+                    this.solveYellowCornersOrientation();
+                    this.solveYellowCornersPermutation();
+                    this.solveYellowEdges();
+                } catch (e) {
+                    console.error("Solver error:", e);
+                }
+                this.optimizeMoves();
+                return this.moves;
+            }
+
+            solveYellowCross() {
+                const yellow = this.centers['D'];
+                const edges = [
+                    { name: 'DF', p: [0, -1, 1] },
+                    { name: 'DR', p: [1, -1, 0] },
+                    { name: 'DB', p: [0, -1, -1] },
+                    { name: 'DL', p: [-1, -1, 0] }
+                ];
+                let failsafe = 0;
+                while (failsafe++ < 10) {
+                    const oriented = edges.filter(e => this.getColor(...e.p, 0, -1, 0) === yellow);
+                    if (oriented.length === 4) break;
+                    if (oriented.length === 2) {
+                        const isOpposite = (oriented[0].p[0] === -oriented[1].p[0] && oriented[0].p[0] !== 0) || 
+                                           (oriented[0].p[2] === -oriented[1].p[2] && oriented[0].p[2] !== 0);
+                        if (isOpposite) {
+                            if (oriented.some(e => e.name === 'DF')) this.addMove("D");
+                            this.execRelative("F", ["F'", "R'", "D'", "R", "D", "F"]);
+                        } else {
+                            const names = oriented.map(e => e.name);
+                            if (names.includes('DB') && names.includes('DL')) {}
+                            else if (names.includes('DL') && names.includes('DF')) this.addMove("D'");
+                            else if (names.includes('DF') && names.includes('DR')) this.addMove("D2");
+                            else if (names.includes('DR') && names.includes('DB')) this.addMove("D");
+                            this.execRelative("F", ["F'", "R'", "D'", "R", "D", "F"]);
+                        }
+                    } else {
+                        this.execRelative("F", ["F'", "R'", "D'", "R", "D", "F"]);
+                    }
+                }
+            }
+
+            solveYellowEdges() {
+                const edgePositions = [
+                    { f: 'F', p: [0, -1, 1], n: [0, 0, 1] },
+                    { f: 'R', p: [1, -1, 0], n: [1, 0, 0] },
+                    { f: 'B', p: [0, -1, -1], n: [0, 0, -1] },
+                    { f: 'L', p: [-1, -1, 0], n: [-1, 0, 0] }
+                ];
+                
+                const isSolved = () => {
+                    const edgesMatch = edgePositions.every(ep => this.getColor(...ep.p, ...ep.n) === this.centers[ep.f]);
+                    if (!edgesMatch) return false;
+                    const cpPositions = [
+                        { p: [1, -1, 1], faces: ['D', 'F', 'R'] },
+                        { p: [1, -1, -1], faces: ['D', 'B', 'R'] },
+                        { p: [-1, -1, -1], faces: ['D', 'B', 'L'] },
+                        { p: [-1, -1, 1], faces: ['D', 'F', 'L'] }
+                    ];
+                    const cornersMatch = cpPositions.every(cp => {
+                        const colX = this.getColor(...cp.p, Math.sign(cp.p[0]), 0, 0);
+                        const colY = this.getColor(...cp.p, 0, -1, 0);
+                        const colZ = this.getColor(...cp.p, 0, 0, Math.sign(cp.p[2]));
+                        const actualColors = [colX, colY, colZ].sort();
+                        const targetColors = cp.faces.map(f => this.centers[f]).sort();
+                        return actualColors[0] === targetColors[0] && actualColors[1] === targetColors[1] && actualColors[2] === targetColors[2];
+                    });
+                    return cornersMatch && this.isCubeSolved();
+                };
+
+                const uaPerm = ["R", "D'", "R", "D", "R", "D", "R", "D'", "R'", "D'", "R2"];
+                const ubPerm = ["R2", "D", "R", "D", "R'", "D'", "R'", "D'", "R'", "D", "R'"];
+                const hPerm = ["R2", "D2", "R", "D2", "R2", "D2", "R2", "D2", "R", "D2", "R2"];
+                const pllAlgs = [uaPerm, ubPerm, hPerm];
+                const faces = ["F", "R", "B", "L"];
+                const rotMoves = ["", "D", "D2", "D'"];
+
+                let failsafe = 0;
+                while (failsafe++ < 5) {
+                    if (isSolved()) break;
+
+                    let bestSolution = null;
+                    for (let rot of rotMoves) {
+                        for (let face of faces) {
+                            for (let alg of pllAlgs) {
+                                for (let rotFinal of rotMoves) {
+                                    const sequence = this.buildCandidateSequence(rot, face, alg, rotFinal);
+                                    if (this.testMoveSequence(sequence, isSolved)) {
+                                        if (!bestSolution || this.sequenceCost(sequence) < this.sequenceCost(bestSolution)) {
+                                            bestSolution = sequence;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (bestSolution) {
+                        this.applyMoveSequence(bestSolution);
+                        break;
+                    }
+
+                    let bestFallback = null;
+                    let maxSolved = -1;
+
+                    for (let rot of rotMoves) {
+                        for (let face of faces) {
+                            for (let alg of [uaPerm, ubPerm]) {
+                                for (let rotFinal of rotMoves) {
+                                    const sequence = this.buildCandidateSequence(rot, face, alg, rotFinal);
+                                    const count = this.scoreMoveSequence(sequence, () =>
+                                        edgePositions.filter(ep => this.getColor(...ep.p, ...ep.n) === this.centers[ep.f]).length
+                                    );
+                                    if (count > maxSolved || (count === maxSolved && (!bestFallback || this.sequenceCost(sequence) < this.sequenceCost(bestFallback)))) {
+                                        maxSolved = count;
+                                        bestFallback = sequence;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (bestFallback) {
+                        this.applyMoveSequence(bestFallback);
+                    } else {
+                        this.execRelative("F", uaPerm);
+                    }
+                }
+            }
+
+            solveYellowCornersPermutation() {
+                const cpPositions = [
+                    { p: [1, -1, 1], faces: ['D', 'F', 'R'] },
+                    { p: [1, -1, -1], faces: ['D', 'B', 'R'] },
+                    { p: [-1, -1, -1], faces: ['D', 'B', 'L'] },
+                    { p: [-1, -1, 1], faces: ['D', 'F', 'L'] }
+                ];
+                const isCorrectSpot = () => {
+                    for (let cp of cpPositions) {
+                        const colX = this.getColor(...cp.p, Math.sign(cp.p[0]), 0, 0);
+                        const colY = this.getColor(...cp.p, 0, -1, 0);
+                        const colZ = this.getColor(...cp.p, 0, 0, Math.sign(cp.p[2]));
+                        const actualColors = [colX, colY, colZ].sort();
+                        const targetColors = cp.faces.map(f => this.centers[f]).sort();
+                        if (actualColors[0] !== targetColors[0] || actualColors[1] !== targetColors[1] || actualColors[2] !== targetColors[2]) {
+                            return false;
+                        }
+                    }
+                    return true;
+                };
+
+                const rotMoves = ["", "D", "D2", "D'"];
+                for (let rot of rotMoves) {
+                    if (rot) this.addMove(rot);
+                    if (isCorrectSpot()) {
+                        return;
+                    }
+                    if (rot) this.addMove(this.invertMove(rot));
+                }
+
+                const tPerm = ["R", "D", "R'", "D'", "R'", "B", "R2", "D'", "R'", "D'", "R", "D", "R'", "B'"];
+                const yPerm = ["B", "R", "D'", "R'", "D'", "R", "D", "R'", "B'", "R", "D", "R'", "D'", "R'", "B", "R", "B'"];
+                const faces = ["F", "R", "B", "L"];
+                
+                let bestSolution = null;
+                for (let rot of rotMoves) {
+                    for (let face of faces) {
+                        for (let alg of [tPerm, yPerm]) {
+                            for (let rotFinal of rotMoves) {
+                                const sequence = this.buildCandidateSequence(rot, face, alg, rotFinal);
+                                if (this.testMoveSequence(sequence, isCorrectSpot)) {
+                                    if (!bestSolution || this.sequenceCost(sequence) < this.sequenceCost(bestSolution)) {
+                                        bestSolution = sequence;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (bestSolution) {
+                    this.applyMoveSequence(bestSolution);
+                }
+            }
+
+            solveYellowCornersOrientation() {
+                const yellow = this.centers['D'];
+                const corners = [
+                    { p: [1, -1, 1] },
+                    { p: [1, -1, -1] },
+                    { p: [-1, -1, -1] },
+                    { p: [-1, -1, 1] }
+                ];
+                
+                const getOrientedCount = () => {
+                    return corners.filter(c => this.getColor(...c.p, 0, -1, 0) === yellow).length;
+                };
+
+                const sune = ["R", "D", "R'", "D", "R", "D2", "R'"];
+                const antiSune = ["R", "D2", "R'", "D'", "R", "D'", "R'"];
+                const pi = ["R", "D2", "R2", "D'", "R2", "D'", "R2", "D2", "R"];
+                const hCase = ["R", "D2", "R'", "D'", "R", "D", "R'", "D'", "R", "D'", "R'"];
+                const ocllAlgs = [sune, antiSune, pi, hCase];
+                const rotMoves = ["", "D", "D2", "D'"];
+
+                const solvesOrientation = () => getOrientedCount() === 4 && this.isFirstTwoLayersSolved();
+
+                let failsafe = 0;
+                while (failsafe++ < 10) {
+                    const count = getOrientedCount();
+                    if (count === 4) break;
+
+                    let bestSolution = null;
+                    for (let rot of rotMoves) {
+                        for (let face of ['F', 'R', 'B', 'L']) {
+                            for (let alg of ocllAlgs) {
+                                const sequence = this.buildCandidateSequence(rot, face, alg, "");
+                                if (this.testMoveSequence(sequence, solvesOrientation)) {
+                                    if (!bestSolution || this.sequenceCost(sequence) < this.sequenceCost(bestSolution)) {
+                                        bestSolution = sequence;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (bestSolution) {
+                        this.applyMoveSequence(bestSolution);
+                        break;
+                    }
+
+                    if (count !== 1) {
+                        let bestSetup = null;
+                        let bestSetupScore = -1;
+                        for (let rot of rotMoves) {
+                            for (let face of ['F', 'R', 'B', 'L']) {
+                                for (let alg of [sune, antiSune]) {
+                                    const sequence = this.buildCandidateSequence(rot, face, alg, "");
+                                    const score = this.scoreMoveSequence(sequence, () => this.isFirstTwoLayersSolved() ? getOrientedCount() : -1);
+                                    if (score > bestSetupScore || (score === bestSetupScore && (!bestSetup || this.sequenceCost(sequence) < this.sequenceCost(bestSetup)))) {
+                                        bestSetupScore = score;
+                                        bestSetup = sequence;
+                                    }
+                                }
+                            }
+                        }
+                        if (bestSetup && bestSetupScore > count) {
+                            this.applyMoveSequence(bestSetup);
+                            continue;
+                        }
+                    }
+
+                    this.execRelative("F", sune);
+                }
+            }
+
+            solveWhiteCross() {
+                const white = this.centers['U'];
+                const sides = [{n:'F', ax:'z', val:1}, {n:'R', ax:'x', val:1}, {n:'B', ax:'z', val:-1}, {n:'L', ax:'x', val:-1}];
+                
+                for (let side of sides) {
+                    const sideColor = this.centers[side.n];
+                    let failsafe = 0;
+                    
+                    while (failsafe++ < 10) {
+                        let edge = this.findEdge(white, sideColor);
+                        if (!edge) break;
+
+                        if (edge.pos.y === 1 && edge.pos[side.ax] === side.val) {
+                            const uColor = this.getColor(edge.pos.x, edge.pos.y, edge.pos.z, 0, 1, 0);
+                            if (uColor === white) break;
+                        }
+
+                        if (edge.pos.y === 1) {
+                            let faceToTurn = 'F';
+                            if (edge.pos.z === 1) faceToTurn = 'F';
+                            else if (edge.pos.z === -1) faceToTurn = 'B';
+                            else if (edge.pos.x === 1) faceToTurn = 'R';
+                            else if (edge.pos.x === -1) faceToTurn = 'L';
+                            this.addMove(`${faceToTurn}2`);
+                            continue;
+                        }
+
+                        if (edge.pos.y === 0) {
+                            if (edge.pos.x === 1 && edge.pos.z === 1) { this.addMove('F'); this.addMove('D'); this.addMove("F'"); }
+                            else if (edge.pos.x === 1 && edge.pos.z === -1) { this.addMove('R'); this.addMove('D'); this.addMove("R'"); }
+                            else if (edge.pos.x === -1 && edge.pos.z === -1) { this.addMove('B'); this.addMove('D'); this.addMove("B'"); }
+                            else if (edge.pos.x === -1 && edge.pos.z === 1) { this.addMove('L'); this.addMove('D'); this.addMove("L'"); }
+                            continue;
+                        }
+
+                        if (edge.pos[side.ax] !== side.val) {
+                            this.addMove('D');
+                            continue;
+                        }
+
+                        const dColor = this.getColor(edge.pos.x, edge.pos.y, edge.pos.z, 0, -1, 0);
+                        if (dColor === white) {
+                            this.addMove(`${side.n}2`);
+                        } else {
+                            if (side.n === 'F') { this.addMove("D"); this.addMove("R"); this.addMove("F'"); this.addMove("R'"); }
+                            else if (side.n === 'R') { this.addMove("D"); this.addMove("B"); this.addMove("R'"); this.addMove("B'"); }
+                            else if (side.n === 'B') { this.addMove("D"); this.addMove("L"); this.addMove("B'"); this.addMove("L'"); }
+                            else if (side.n === 'L') { this.addMove("D"); this.addMove("F"); this.addMove("L'"); this.addMove("F'"); }
+                        }
+                    }
+                }
+            }
+
+            solveWhiteCorners() {
+                const white = this.centers['U'];
+                const corners = [
+                    { id: 'URF', x: 1, z: 1, f1: 'F', f2: 'R' },
+                    { id: 'URB', x: 1, z: -1, f1: 'R', f2: 'B' },
+                    { id: 'ULB', x: -1, z: -1, f1: 'B', f2: 'L' },
+                    { id: 'ULF', x: -1, z: 1, f1: 'L', f2: 'F' }
+                ];
+
+                for (let target of corners) {
+                    const c1 = this.centers[target.f1];
+                    const c2 = this.centers[target.f2];
+                    
+                    let failsafe = 0;
+                    while (failsafe++ < 15) {
+                        let corner = this.findCorner(white, c1, c2);
+                        if (!corner) break;
+
+                        if (corner.pos.y === 1 && corner.pos.x === target.x && corner.pos.z === target.z) {
+                            if (this.getColor(corner.pos.x, corner.pos.y, corner.pos.z, 0, 1, 0) === white) {
+                                break;
+                            }
+                        }
+
+                        if (corner.pos.y === 1) {
+                            if (corner.pos.x === 1 && corner.pos.z === 1) { this.addMove("R'"); this.addMove("D'"); this.addMove("R"); }
+                            else if (corner.pos.x === 1 && corner.pos.z === -1) { this.addMove("B'"); this.addMove("D'"); this.addMove("B"); }
+                            else if (corner.pos.x === -1 && corner.pos.z === -1) { this.addMove("L'"); this.addMove("D'"); this.addMove("L"); }
+                            else if (corner.pos.x === -1 && corner.pos.z === 1) { this.addMove("F'"); this.addMove("D'"); this.addMove("F"); }
+                            continue;
+                        }
+
+                        if (corner.pos.x !== target.x || corner.pos.z !== target.z) {
+                            this.addMove('D');
+                            continue;
+                        }
+
+                        const isBottom = this.getColor(corner.pos.x, -1, corner.pos.z, 0, -1, 0) === white;
+                        const isRightAxisX = (target.f2 === 'R' || target.f2 === 'L');
+                        const isRight = isRightAxisX ? 
+                            (this.getColor(corner.pos.x, -1, corner.pos.z, Math.sign(corner.pos.x), 0, 0) === white) :
+                            (this.getColor(corner.pos.x, -1, corner.pos.z, 0, 0, Math.sign(corner.pos.z)) === white);
+                        
+                        if (isBottom) {
+                            this.execRelative(target.f1, ["R'", "D2", "R", "D", "R'", "D'", "R"]);
+                        } else if (isRight) {
+                            this.execRelative(target.f1, ["R'", "D'", "R"]);
+                        } else {
+                            this.execRelative(target.f1, ["F", "D", "F'"]);
+                        }
+                    }
+                }
+            }
+
+            solveSecondLayer() {
+                const edges = [
+                    { f: 'F', r: 'R', x: 1, z: 1 }, 
+                    { f: 'R', r: 'B', x: 1, z: -1 }, 
+                    { f: 'B', r: 'L', x: -1, z: -1 }, 
+                    { f: 'L', r: 'F', x: -1, z: 1 }
+                ];
+
+                edges.forEach(target => {
+                    const colorF = this.centers[target.f];
+                    const colorR = this.centers[target.r];
+                    
+                    for (let failsafe=0; failsafe<15; failsafe++) {
+                        let edge = this.findEdge(colorF, colorR);
+                        if (!edge) break;
+                        
+                        if (edge.pos.y === 0 && edge.pos.x === target.x && edge.pos.z === target.z) {
+                            const nx = target.f === 'R' ? 1 : (target.f === 'L' ? -1 : 0);
+                            const nz = target.f === 'F' ? 1 : (target.f === 'B' ? -1 : 0);
+                            if (this.getColor(edge.pos.x, edge.pos.y, edge.pos.z, nx, 0, nz) === colorF) {
+                                break; 
+                            }
+                            this.execRelative(target.f, ["D'", "R'", "D", "R", "D", "F", "D'", "F'"]);
+                            continue;
+                        }
+
+                        if (edge.pos.y === 0) {
+                            let f = 'F';
+                            if (edge.pos.x === 1 && edge.pos.z === 1) f = 'F';
+                            else if (edge.pos.x === 1 && edge.pos.z === -1) f = 'R';
+                            else if (edge.pos.x === -1 && edge.pos.z === -1) f = 'B';
+                            else if (edge.pos.x === -1 && edge.pos.z === 1) f = 'L';
+                            this.execRelative(f, ["D'", "R'", "D", "R", "D", "F", "D'", "F'"]);
+                            continue;
+                        }
+
+                        let sideColor = edge.nA[1] === -1 ? edge.colorB : edge.colorA;
+                        let sideNx = edge.nA[1] === -1 ? edge.nB[0] : edge.nA[0];
+                        let sideNz = edge.nA[1] === -1 ? edge.nB[2] : edge.nA[2];
+                        
+                        let sideFace = 'F';
+                        if (sideNx === 1) sideFace = 'R';
+                        else if (sideNx === -1) sideFace = 'L';
+                        else if (sideNz === 1) sideFace = 'F';
+                        else if (sideNz === -1) sideFace = 'B';
+
+                        let matchingCenterFace = ['F', 'R', 'B', 'L'].find(f => this.centers[f] === sideColor);
+
+                        if (sideFace !== matchingCenterFace) {
+                            this.addMove('D');
+                            continue;
+                        }
+
+                        let bottomColor = edge.nA[1] === -1 ? edge.colorA : edge.colorB;
+                        let rightFace = this.getRightFace(matchingCenterFace);
+                        
+                        if (this.centers[rightFace] === bottomColor) {
+                            this.execRelative(matchingCenterFace, ["D'", "R'", "D", "R", "D", "F", "D'", "F'"]);
+                        } else {
+                            this.execRelative(matchingCenterFace, ["D", "L", "D'", "L'", "D'", "F'", "D", "F"]);
+                        }
+                    }
+                });
+            }
+
+            getRightFace(f) {
+                const order = ['F', 'R', 'B', 'L'];
+                return order[(order.indexOf(f) + 1) % 4];
+            }
+            
+            getLeftFace(f) {
+                const order = ['F', 'R', 'B', 'L'];
+                return order[(order.indexOf(f) + 3) % 4];
+            }
+
+            invertMove(move) {
+                if (move.endsWith("'")) return move[0];
+                if (move.endsWith("2")) return move;
+                return move + "'";
+            }
+
+            invertAlg(alg) {
+                return alg.slice().reverse().map(m => this.invertMove(m));
+            }
+
+            moveCost(move) {
+                return move.endsWith('2') ? 2 : 1;
+            }
+
+            sequenceCost(sequence) {
+                return sequence.reduce((total, move) => total + this.moveCost(move), 0);
+            }
+
+            execRelative(frontFace, movesArr) {
+                this.applyMoveSequence(this.relativeMoves(frontFace, movesArr));
+            }
+
+            relativeMoves(frontFace, movesArr) {
+                const faces = ['F', 'R', 'B', 'L'];
+                const offset = faces.indexOf(frontFace);
+                return movesArr.map(move => {
+                    if (move.startsWith('U') || move.startsWith('D')) {
+                        return move;
+                    }
+                    let base = move[0];
+                    let isPrime = move.endsWith("'");
+                    let isDouble = move.endsWith("2");
+                    if (['F', 'R', 'B', 'L'].includes(base)) {
+                        let newIdx = (faces.indexOf(base) + offset) % 4;
+                        let suffix = "";
+                        if (isPrime) suffix = "'";
+                        else if (isDouble) suffix = "2";
+                        return faces[newIdx] + suffix;
+                    }
+                    return move;
+                });
+            }
+
+            applyMoveSequence(sequence) {
+                sequence.forEach(move => this.addMove(move));
+            }
+
+            buildCandidateSequence(preMove, frontFace, alg, postMove) {
+                const sequence = [];
+                if (preMove) sequence.push(preMove);
+                sequence.push(...this.relativeMoves(frontFace, alg));
+                if (postMove) sequence.push(postMove);
+                return sequence;
+            }
+
+            testMoveSequence(sequence, predicate) {
+                const startLen = this.moves.length;
+                this.applyMoveSequence(sequence);
+                const result = predicate();
+                this.applyMoveSequence(this.invertAlg(sequence));
+                this.moves.length = startLen;
+                return result;
+            }
+
+            scoreMoveSequence(sequence, scorer) {
+                const startLen = this.moves.length;
+                this.applyMoveSequence(sequence);
+                const score = scorer();
+                this.applyMoveSequence(this.invertAlg(sequence));
+                this.moves.length = startLen;
+                return score;
+            }
+
+            optimizeMoves() {
+                const normalizeAdjacentMoves = () => {
+                    let changed = false;
+                    const valueOf = (move) => move.endsWith("'") ? -1 : (move.endsWith("2") ? 2 : 1);
+
+                    for (let i = 0; i < this.moves.length - 1; i++) {
+                        const m1 = this.moves[i];
+                        const m2 = this.moves[i + 1];
+                        if (!m1 || !m2 || m1[0] !== m2[0]) continue;
+
+                        const sum = (valueOf(m1) + valueOf(m2)) % 4;
+                        if (sum === 0) {
+                            this.moves.splice(i, 2);
+                        } else {
+                            let merged = m1[0];
+                            if (sum === 2 || sum === -2) merged += '2';
+                            else if (sum === 3 || sum === -1) merged += "'";
+                            this.moves.splice(i, 2, merged);
+                        }
+                        changed = true;
+                        i = Math.max(-1, i - 2);
+                    }
+                    return changed;
+                };
+
+                const commuteAndMergeMoves = () => {
+                    let optimized = false;
+                    const commutesWith = (m1, m2) => {
+                        const opp = { 'R': 'L', 'L': 'R', 'U': 'D', 'D': 'U', 'F': 'B', 'B': 'F' };
+                        return opp[m1[0]] === m2[0];
+                    };
+                    do {
+                        optimized = false;
+                        for (let i = 0; i < this.moves.length; i++) {
+                            let m1 = this.moves[i];
+                            if (!m1) continue;
+                            for (let j = i + 1; j < this.moves.length; j++) {
+                                let m2 = this.moves[j];
+                                if (!m2) continue;
+                                if (m1[0] === m2[0]) {
+                                    let canCommute = true;
+                                    for (let k = i + 1; k < j; k++) {
+                                        if (!commutesWith(m1, this.moves[k])) {
+                                            canCommute = false;
+                                            break;
+                                        }
+                                    }
+                                    if (canCommute) {
+                                        let c1 = m1.endsWith("'") ? -1 : (m1.endsWith("2") ? 2 : 1);
+                                        let c2 = m2.endsWith("'") ? -1 : (m2.endsWith("2") ? 2 : 1);
+                                        let sum = (c1 + c2) % 4;
+                                        if (sum === 0) {
+                                            this.moves.splice(j, 1);
+                                            this.moves.splice(i, 1);
+                                        } else {
+                                            let merged = m1[0];
+                                            if (sum === 1 || sum === -3) {}
+                                            else if (sum === 2 || sum === -2) merged += '2';
+                                            else if (sum === 3 || sum === -1) merged += "'";
+                                            this.moves[i] = merged;
+                                            this.moves.splice(j, 1);
+                                        }
+                                        optimized = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (optimized) break;
+                        }
+                    } while(optimized);
+                    return optimized;
+                };
+
+                normalizeAdjacentMoves();
+                commuteAndMergeMoves();
+                this.optimizeMoveWindows();
+                normalizeAdjacentMoves();
+                commuteAndMergeMoves();
+            }
+
+            optimizeMoveWindows() {
+                const cache = CubeSolver.getMoveWindowCache();
+                let improved = true;
+                while (improved) {
+                    improved = false;
+                    for (let windowSize = 7; windowSize >= 5; windowSize--) {
+                        for (let i = 0; i <= this.moves.length - windowSize; i++) {
+                            const window = this.moves.slice(i, i + windowSize);
+                            const key = CubeSolver.getMoveSequenceKey(window);
+                            const replacement = cache.get(key);
+                            if (replacement && this.sequenceCost(replacement) < this.sequenceCost(window)) {
+                                this.moves.splice(i, windowSize, ...replacement);
+                                improved = true;
+                                break;
+                            }
+                        }
+                        if (improved) break;
+                    }
+                }
+            }
+
+            static getMoveWindowCache() {
+                if (CubeSolver.moveWindowCache) return CubeSolver.moveWindowCache;
+
+                const allMoves = ['R', "R'", 'R2', 'L', "L'", 'L2', 'U', "U'", 'U2', 'D', "D'", 'D2', 'F', "F'", 'F2', 'B', "B'", 'B2'];
+                const opposite = { R: 'L', L: 'R', U: 'D', D: 'U', F: 'B', B: 'F' };
+                const faceOrder = { R: 0, L: 1, U: 2, D: 3, F: 4, B: 5 };
+                const cache = new Map();
+                const identity = CubeSolver.createStickerState();
+
+                cache.set(identity.key, []);
+                let frontier = [{ state: identity.state, sequence: [] }];
+
+                for (let depth = 0; depth < 4; depth++) {
+                    const nextFrontier = [];
+                    for (const item of frontier) {
+                        const prevFace = item.sequence.length ? item.sequence[item.sequence.length - 1][0] : null;
+                        for (const move of allMoves) {
+                            const face = move[0];
+                            if (face === prevFace) continue;
+                            if (prevFace && opposite[face] === prevFace && faceOrder[face] < faceOrder[prevFace]) continue;
+
+                            const nextState = CubeSolver.applyMoveToStickerState(item.state, move);
+                            const key = CubeSolver.stickerStateKey(nextState);
+                            if (cache.has(key)) continue;
+
+                            const sequence = item.sequence.concat(move);
+                            cache.set(key, sequence);
+                            nextFrontier.push({ state: nextState, sequence });
+                        }
+                    }
+                    frontier = nextFrontier;
+                }
+
+                CubeSolver.moveWindowCache = cache;
+                return cache;
+            }
+
+            static getMoveSequenceKey(sequence) {
+                let state = CubeSolver.createStickerState().state;
+                sequence.forEach(move => {
+                    state = CubeSolver.applyMoveToStickerState(state, move);
+                });
+                return CubeSolver.stickerStateKey(state);
+            }
+
+            static createStickerState() {
+                if (CubeSolver.identityStickerState) {
+                    return {
+                        state: CubeSolver.identityStickerState.slice(),
+                        key: CubeSolver.identityStickerKey
+                    };
+                }
+
+                const dirs = [
+                    [1, 0, 0], [-1, 0, 0], [0, 1, 0],
+                    [0, -1, 0], [0, 0, 1], [0, 0, -1]
+                ];
+                const locations = [];
+                dirs.forEach(norm => {
+                    for (let x = -1; x <= 1; x++) {
+                        for (let y = -1; y <= 1; y++) {
+                            for (let z = -1; z <= 1; z++) {
+                                if (x * norm[0] + y * norm[1] + z * norm[2] === 1) {
+                                    locations.push({ pos: [x, y, z], norm });
+                                }
+                            }
+                        }
+                    }
+                });
+
+                CubeSolver.stickerLocations = locations;
+                CubeSolver.stickerLocationIndex = new Map(locations.map((loc, idx) => [CubeSolver.locationKey(loc.pos, loc.norm), idx]));
+                CubeSolver.identityStickerState = locations.map((_, idx) => idx);
+                CubeSolver.identityStickerKey = CubeSolver.stickerStateKey(CubeSolver.identityStickerState);
+                return {
+                    state: CubeSolver.identityStickerState.slice(),
+                    key: CubeSolver.identityStickerKey
+                };
+            }
+
+            static stickerStateKey(state) {
+                return state.join(',');
+            }
+
+            static locationKey(pos, norm) {
+                return `${pos[0]},${pos[1]},${pos[2]}|${norm[0]},${norm[1]},${norm[2]}`;
+            }
+
+            static applyMoveToStickerState(state, move) {
+                CubeSolver.createStickerState();
+                const base = move[0];
+                const def = {
+                    R: { axis: 0, val: 1 }, L: { axis: 0, val: -1 },
+                    U: { axis: 1, val: 1 }, D: { axis: 1, val: -1 },
+                    F: { axis: 2, val: 1 }, B: { axis: 2, val: -1 }
+                }[base];
+                if (!def) return state.slice();
+
+                const count = move.endsWith('2') ? 2 : 1;
+                const dir = move.endsWith("'") ? -1 : 1;
+                const faceDir = (base === 'U' || base === 'R' || base === 'F') ? -1 : 1;
+                let next = state.slice();
+
+                for (let turn = 0; turn < count; turn++) {
+                    next = next.map(locIndex => {
+                        const loc = CubeSolver.stickerLocations[locIndex];
+                        if (loc.pos[def.axis] !== def.val) return locIndex;
+
+                        const rotatedPos = CubeSolver.rotateCoord(loc.pos, def.axis, faceDir * dir);
+                        const rotatedNorm = CubeSolver.rotateCoord(loc.norm, def.axis, faceDir * dir);
+                        return CubeSolver.stickerLocationIndex.get(CubeSolver.locationKey(rotatedPos, rotatedNorm));
+                    });
+                }
+
+                return next;
+            }
+
+            static rotateCoord(coord, axis, dir) {
+                const [x, y, z] = coord;
+                if (axis === 0) return dir === 1 ? [x, -z, y] : [x, z, -y];
+                if (axis === 1) return dir === 1 ? [z, y, -x] : [-z, y, x];
+                return dir === 1 ? [-y, x, z] : [y, -x, z];
+            }
+        }
+        // --- End CubeSolver ---
+
+        // --- Two-Phase (Kociemba-style) Optimal-ish Solver ---
+        // 표준 URFDLB facelet 표기를 기반으로 cubie 모델을 만들고,
+        // Phase1: 그룹 G1=<U,D,R2,L2,F2,B2> 로 환원 (edge orientation/corner orientation/UD-slice)
+        // Phase2: G1 내부에서 corner/edge permutation 을 풀어 전체 완성.
+        // LBL(약 80~130수) 대비 평균 20수대로 이동수를 크게 줄임. (연산량은 증가)
+        const TwoPhase = (function () {
+            // --- 상수 테이블 (표준 Kociemba 정의) ---
+            // 코너 0..7: URF,UFL,ULB,UBR,DFR,DLF,DBL,DRB
+            // 엣지  0..11: UR,UF,UL,UB,DR,DF,DL,DB,FR,FL,BL,BR
+            const cornerFacelet = [
+                [8, 9, 20], [6, 18, 38], [0, 36, 47], [2, 45, 11],
+                [29, 26, 15], [27, 44, 24], [33, 53, 42], [35, 17, 51]
+            ];
+            const edgeFacelet = [
+                [5, 10], [7, 19], [3, 37], [1, 46],
+                [32, 16], [28, 25], [30, 43], [34, 52],
+                [23, 14], [21, 41], [50, 39], [48, 12]
+            ];
+            const faceChars = "URFDLB";
+            const faceNormals = {
+                U: [0, 1, 0], R: [1, 0, 0], F: [0, 0, 1],
+                D: [0, -1, 0], L: [-1, 0, 0], B: [0, 0, -1]
+            };
+            const faceOf = (idx) => faceChars[Math.floor(idx / 9)];
+            const cornerColorChar = cornerFacelet.map(t => t.map(faceOf));
+            const edgeColorChar = edgeFacelet.map(t => t.map(faceOf));
+
+            // facelet(0..53) -> (pos, normal) (현재 엔진 좌표계와 동일: U=+y, R=+x, F=+z)
+            const faceletPos = new Array(54), faceletNorm = new Array(54);
+            (function buildFaceletGeometry() {
+                for (let f = 0; f < 6; f++) {
+                    const n = faceNormals[faceChars[f]];
+                    faceletPos[f * 9 + 4] = n.slice();
+                    faceletNorm[f * 9 + 4] = n.slice();
+                }
+                cornerFacelet.forEach(tri => {
+                    const ns = tri.map(idx => faceNormals[faceOf(idx)]);
+                    const pos = [ns[0][0] + ns[1][0] + ns[2][0], ns[0][1] + ns[1][1] + ns[2][1], ns[0][2] + ns[1][2] + ns[2][2]];
+                    tri.forEach(idx => { faceletPos[idx] = pos.slice(); faceletNorm[idx] = faceNormals[faceOf(idx)].slice(); });
+                });
+                edgeFacelet.forEach(pair => {
+                    const ns = pair.map(idx => faceNormals[faceOf(idx)]);
+                    const pos = [ns[0][0] + ns[1][0], ns[0][1] + ns[1][1], ns[0][2] + ns[1][2]];
+                    pair.forEach(idx => { faceletPos[idx] = pos.slice(); faceletNorm[idx] = faceNormals[faceOf(idx)].slice(); });
+                });
+            })();
+
+            // --- cubie 기본 수(canonical) 정의 ---
+            const baseMoves = [
+                { cp: [3, 0, 1, 2, 4, 5, 6, 7], co: [0, 0, 0, 0, 0, 0, 0, 0], ep: [3, 0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11], eo: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, // U
+                { cp: [4, 1, 2, 0, 7, 5, 6, 3], co: [2, 0, 0, 1, 1, 0, 0, 2], ep: [8, 1, 2, 3, 11, 5, 6, 7, 4, 9, 10, 0], eo: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, // R
+                { cp: [1, 5, 2, 3, 0, 4, 6, 7], co: [1, 2, 0, 0, 2, 1, 0, 0], ep: [0, 9, 2, 3, 4, 8, 6, 7, 1, 5, 10, 11], eo: [0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0] }, // F
+                { cp: [0, 1, 2, 3, 5, 6, 7, 4], co: [0, 0, 0, 0, 0, 0, 0, 0], ep: [0, 1, 2, 3, 5, 6, 7, 4, 8, 9, 10, 11], eo: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, // D
+                { cp: [0, 2, 6, 3, 4, 1, 5, 7], co: [0, 1, 2, 0, 0, 2, 1, 0], ep: [0, 1, 10, 3, 4, 5, 9, 7, 8, 2, 6, 11], eo: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, // L
+                { cp: [0, 1, 3, 7, 4, 5, 2, 6], co: [0, 0, 1, 2, 0, 0, 2, 1], ep: [0, 1, 2, 11, 4, 5, 6, 10, 8, 9, 3, 7], eo: [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1] }  // B
+            ];
+
+            function multiply(a, b) {
+                const cp = new Array(8), co = new Array(8), ep = new Array(12), eo = new Array(12);
+                for (let i = 0; i < 8; i++) { cp[i] = a.cp[b.cp[i]]; co[i] = (a.co[b.cp[i]] + b.co[i]) % 3; }
+                for (let i = 0; i < 12; i++) { ep[i] = a.ep[b.ep[i]]; eo[i] = (a.eo[b.ep[i]] + b.eo[i]) % 2; }
+                return { cp, co, ep, eo };
+            }
+
+            // 18수: face*3 + (power-1)
+            const moves18 = [];
+            for (let f = 0; f < 6; f++) {
+                const m1 = baseMoves[f];
+                const m2 = multiply(m1, baseMoves[f]);
+                moves18[f * 3 + 0] = m1;
+                moves18[f * 3 + 1] = m2;
+                moves18[f * 3 + 2] = multiply(m2, baseMoves[f]);
+            }
+            const moveName18 = [];
+            for (let f = 0; f < 6; f++) {
+                moveName18[f * 3 + 0] = faceChars[f];
+                moveName18[f * 3 + 1] = faceChars[f] + "2";
+                moveName18[f * 3 + 2] = faceChars[f] + "'";
+            }
+            // Phase2 허용 수: U,U2,U', D,D2,D', R2,L2,F2,B2
+            const phase2Moves = [0, 1, 2, 9, 10, 11, 4, 13, 7, 16];
+            const moveNameP2 = phase2Moves.map(m => moveName18[m]);
+            const faceP2 = phase2Moves.map(m => Math.floor(m / 3));
+            const oppFace = [3, 4, 5, 0, 1, 2]; // U-D, R-L, F-B
+
+            function disallowed(face, lastFace) {
+                if (lastFace < 0) return false;
+                if (face === lastFace) return true;
+                if (oppFace[face] === lastFace && face > lastFace) return true; // 같은 축 한쪽 순서만 허용
+                return false;
+            }
+
+            // --- 조합/순열 헬퍼 ---
+            const fact = [1, 1, 2, 6, 24, 120, 720, 5040, 40320];
+            function nCk(n, k) {
+                if (k < 0 || k > n) return 0;
+                let r = 1;
+                for (let i = 0; i < k; i++) r = r * (n - i) / (i + 1);
+                return Math.round(r);
+            }
+            function permRank(arr) {
+                const n = arr.length; let r = 0;
+                for (let i = 0; i < n; i++) {
+                    let s = 0;
+                    for (let j = i + 1; j < n; j++) if (arr[j] < arr[i]) s++;
+                    r = r * (n - i) + s;
+                }
+                return r;
+            }
+            function permUnrank(idx, n) {
+                const arr = new Array(n);
+                const elems = [];
+                for (let i = 0; i < n; i++) elems.push(i);
+                for (let i = 0; i < n; i++) {
+                    const f = fact[n - 1 - i];
+                    const d = Math.floor(idx / f); idx %= f;
+                    arr[i] = elems.splice(d, 1)[0];
+                }
+                return arr;
+            }
+            function permParity(arr) {
+                let p = 0;
+                for (let i = 0; i < arr.length; i++)
+                    for (let j = i + 1; j < arr.length; j++) if (arr[j] < arr[i]) p ^= 1;
+                return p;
+            }
+
+            // --- 좌표 get/set ---
+            function getTwist(co) { let r = 0; for (let i = 0; i < 7; i++) r = r * 3 + co[i]; return r; }
+            function setTwist(t) {
+                const co = new Array(8); let s = 0;
+                for (let i = 6; i >= 0; i--) { co[i] = t % 3; t = (t - co[i]) / 3; s += co[i]; }
+                co[7] = (3 - s % 3) % 3;
+                return co;
+            }
+            function getFlip(eo) { let r = 0; for (let i = 0; i < 11; i++) r = r * 2 + eo[i]; return r; }
+            function setFlip(t) {
+                const eo = new Array(12); let s = 0;
+                for (let i = 10; i >= 0; i--) { eo[i] = t % 2; t = (t - eo[i]) / 2; s += eo[i]; }
+                eo[11] = s % 2;
+                return eo;
+            }
+            function getSlice(ep) { // UD-slice 조합 좌표 0..494
+                let r = 0, k = 0;
+                for (let i = 0; i < 12; i++) if (ep[i] >= 8) { r += nCk(i, k + 1); k++; }
+                return r;
+            }
+            function setSliceEp(comb) {
+                const ep = new Array(12).fill(-1);
+                let rem = comb;
+                for (let kk = 3; kk >= 0; kk--) {
+                    let p = 11;
+                    while (nCk(p, kk + 1) > rem) p--;
+                    rem -= nCk(p, kk + 1);
+                    ep[p] = 8 + kk;
+                }
+                const fillers = [0, 1, 2, 3, 4, 5, 6, 7]; let fi = 0;
+                for (let i = 0; i < 12; i++) if (ep[i] === -1) ep[i] = fillers[fi++];
+                return ep;
+            }
+            const SLICE_SOLVED = getSlice([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]); // = 494
+            function getCornPerm(cp) { return permRank(cp); }
+            function getUdPerm(ep) { return permRank(ep.slice(0, 8)); }
+            function getSlPerm(ep) { return permRank(ep.slice(8, 12).map(x => x - 8)); }
+
+            // --- 이동 테이블 / 가지치기 테이블 ---
+            let tablesReady = false;
+            let twistMove, flipMove, sliceMove;
+            let cpMove, udeMove, sleMove;
+            let pruneTwistSlice, pruneFlipSlice, pruneCpSle, pruneUdeSle;
+
+            function buildTables() {
+                if (tablesReady) return;
+
+                // Phase1 이동 테이블
+                twistMove = new Uint16Array(2187 * 18);
+                for (let t = 0; t < 2187; t++) {
+                    const co = setTwist(t);
+                    for (let m = 0; m < 18; m++) {
+                        const mv = moves18[m]; const nco = new Array(8);
+                        for (let i = 0; i < 8; i++) nco[i] = (co[mv.cp[i]] + mv.co[i]) % 3;
+                        twistMove[t * 18 + m] = getTwist(nco);
+                    }
+                }
+                flipMove = new Uint16Array(2048 * 18);
+                for (let t = 0; t < 2048; t++) {
+                    const eo = setFlip(t);
+                    for (let m = 0; m < 18; m++) {
+                        const mv = moves18[m]; const neo = new Array(12);
+                        for (let i = 0; i < 12; i++) neo[i] = (eo[mv.ep[i]] + mv.eo[i]) % 2;
+                        flipMove[t * 18 + m] = getFlip(neo);
+                    }
+                }
+                sliceMove = new Uint16Array(495 * 18);
+                for (let c = 0; c < 495; c++) {
+                    const ep = setSliceEp(c);
+                    for (let m = 0; m < 18; m++) {
+                        const mv = moves18[m]; const nep = new Array(12);
+                        for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
+                        sliceMove[c * 18 + m] = getSlice(nep);
+                    }
+                }
+
+                // Phase2 이동 테이블 (10수)
+                cpMove = new Uint16Array(40320 * 10);
+                for (let idx = 0; idx < 40320; idx++) {
+                    const cp = permUnrank(idx, 8);
+                    for (let k = 0; k < 10; k++) {
+                        const mv = moves18[phase2Moves[k]]; const ncp = new Array(8);
+                        for (let i = 0; i < 8; i++) ncp[i] = cp[mv.cp[i]];
+                        cpMove[idx * 10 + k] = permRank(ncp);
+                    }
+                }
+                udeMove = new Uint16Array(40320 * 10);
+                for (let idx = 0; idx < 40320; idx++) {
+                    const e8 = permUnrank(idx, 8);
+                    const ep = e8.concat([8, 9, 10, 11]);
+                    for (let k = 0; k < 10; k++) {
+                        const mv = moves18[phase2Moves[k]]; const nep = new Array(12);
+                        for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
+                        udeMove[idx * 10 + k] = permRank(nep.slice(0, 8));
+                    }
+                }
+                sleMove = new Uint8Array(24 * 10);
+                for (let idx = 0; idx < 24; idx++) {
+                    const s4 = permUnrank(idx, 4).map(x => x + 8);
+                    const ep = [0, 1, 2, 3, 4, 5, 6, 7].concat(s4);
+                    for (let k = 0; k < 10; k++) {
+                        const mv = moves18[phase2Moves[k]]; const nep = new Array(12);
+                        for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
+                        sleMove[idx * 10 + k] = permRank(nep.slice(8, 12).map(x => x - 8));
+                    }
+                }
+
+                // 가지치기 테이블 (목표에서 BFS)
+                pruneTwistSlice = bfsPrune(2187, 495, twistMove, sliceMove, 18, 0, SLICE_SOLVED);
+                pruneFlipSlice = bfsPrune(2048, 495, flipMove, sliceMove, 18, 0, SLICE_SOLVED);
+                pruneCpSle = bfsPrune(40320, 24, cpMove, sleMove, 10, 0, 0);
+                pruneUdeSle = bfsPrune(40320, 24, udeMove, sleMove, 10, 0, 0);
+
+                tablesReady = true;
+            }
+
+            function bfsPrune(size1, size2, moveT1, moveT2, nmoves, goal1, goal2) {
+                const table = new Uint8Array(size1 * size2).fill(255);
+                table[goal1 * size2 + goal2] = 0;
+                let frontier = [[goal1, goal2]];
+                let d = 0;
+                while (frontier.length) {
+                    const next = [];
+                    for (let f = 0; f < frontier.length; f++) {
+                        const c1 = frontier[f][0], c2 = frontier[f][1];
+                        const b1 = c1 * nmoves, b2 = c2 * nmoves;
+                        for (let m = 0; m < nmoves; m++) {
+                            const n1 = moveT1[b1 + m], n2 = moveT2[b2 + m];
+                            const ni = n1 * size2 + n2;
+                            if (table[ni] === 255) { table[ni] = d + 1; next.push([n1, n2]); }
+                        }
+                    }
+                    frontier = next; d++;
+                }
+                return table;
+            }
+
+            // --- 탐색 ---
+            function applySeq(cubie, seq) {
+                let c = cubie;
+                for (let i = 0; i < seq.length; i++) c = multiply(c, moves18[seq[i]]);
+                return c;
+            }
+
+            function phase2Solve(cp, ude, sle, maxDepth) {
+                const h0 = Math.max(pruneCpSle[cp * 24 + sle], pruneUdeSle[ude * 24 + sle]);
+                for (let depth = h0; depth <= maxDepth; depth++) {
+                    const path = [];
+                    if (phase2DFS(cp, ude, sle, depth, -1, path)) return path.map(k => moveNameP2[k]);
+                }
+                return null;
+            }
+            function phase2DFS(cp, ude, sle, depth, lastFace, path) {
+                if (pruneCpSle[cp * 24 + sle] > depth || pruneUdeSle[ude * 24 + sle] > depth) return false;
+                if (depth === 0) return true; // prune==0 이면 완성
+                for (let k = 0; k < 10; k++) {
+                    const face = faceP2[k];
+                    if (disallowed(face, lastFace)) continue;
+                    const ncp = cpMove[cp * 10 + k], nude = udeMove[ude * 10 + k], nsle = sleMove[sle * 10 + k];
+                    path.push(k);
+                    if (phase2DFS(ncp, nude, nsle, depth - 1, face, path)) return true;
+                    path.pop();
+                }
+                return false;
+            }
+
+            // solve: cubie -> 표기 배열 (예: ["R","U2","F'", ...]) 또는 null
+            function solve(cubie, timeLimitMs) {
+                buildTables();
+                const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+                const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+                const timeUp = () => now() - t0 > timeLimitMs;
+
+                let best = null;
+                const startTwist = getTwist(cubie.co);
+                const startFlip = getFlip(cubie.eo);
+                const startSlice = getSlice(cubie.ep);
+                const h0 = Math.max(pruneTwistSlice[startTwist * 495 + startSlice], pruneFlipSlice[startFlip * 495 + startSlice]);
+
+                const onGoal = (sol1) => {
+                    if (best && sol1.length >= best.length) return;
+                    const mid = applySeq(cubie, sol1);
+                    const cp = getCornPerm(mid.cp), ude = getUdPerm(mid.ep), sle = getSlPerm(mid.ep);
+                    const maxP2 = (best ? best.length : 24) - sol1.length - 1;
+                    if (maxP2 < 0) return;
+                    const sol2 = phase2Solve(cp, ude, sle, maxP2);
+                    if (sol2) {
+                        const total = sol1.map(m => moveName18[m]).concat(sol2);
+                        if (!best || total.length < best.length) best = total;
+                    }
+                };
+
+                for (let depth = h0; depth <= 21; depth++) {
+                    if (best && depth >= best.length) break;
+                    phase1DFS(startTwist, startFlip, startSlice, depth, -1, [], onGoal, timeUp);
+                    if (timeUp()) break;
+                }
+                return best;
+            }
+            function phase1DFS(twist, flip, slice, depth, lastFace, path, onGoal, timeUp) {
+                if (pruneTwistSlice[twist * 495 + slice] > depth || pruneFlipSlice[flip * 495 + slice] > depth) return;
+                if (depth === 0) { onGoal(path.slice()); return; }
+                if (timeUp()) return;
+                for (let m = 0; m < 18; m++) {
+                    const face = Math.floor(m / 3);
+                    if (disallowed(face, lastFace)) continue;
+                    const nt = twistMove[twist * 18 + m], nf = flipMove[flip * 18 + m], ns = sliceMove[slice * 18 + m];
+                    path.push(m);
+                    phase1DFS(nt, nf, ns, depth - 1, face, path, onGoal, timeUp);
+                    path.pop();
+                    if (timeUp()) return;
+                }
+            }
+
+            // --- 엔진 상태 -> facelet -> cubie ---
+            function extractFacelets(solver) {
+                const colorToFace = {};
+                ['U', 'R', 'F', 'D', 'L', 'B'].forEach(f => { colorToFace[solver.centers[f]] = f; });
+                let s = '';
+                for (let i = 0; i < 54; i++) {
+                    const p = faceletPos[i], n = faceletNorm[i];
+                    const col = solver.getColor(p[0], p[1], p[2], n[0], n[1], n[2]);
+                    s += (col != null && colorToFace[col] !== undefined) ? colorToFace[col] : '?';
+                }
+                return s;
+            }
+            function faceletsToCubie(f) {
+                const cp = new Array(8), co = new Array(8), ep = new Array(12), eo = new Array(12);
+                for (let i = 0; i < 8; i++) {
+                    let ori = 0;
+                    for (ori = 0; ori < 3; ori++) {
+                        const ch = f[cornerFacelet[i][ori]];
+                        if (ch === 'U' || ch === 'D') break;
+                    }
+                    const col1 = f[cornerFacelet[i][(ori + 1) % 3]];
+                    const col2 = f[cornerFacelet[i][(ori + 2) % 3]];
+                    for (let j = 0; j < 8; j++) {
+                        if (col1 === cornerColorChar[j][1] && col2 === cornerColorChar[j][2]) { cp[i] = j; co[i] = ori % 3; break; }
+                    }
+                }
+                for (let i = 0; i < 12; i++) {
+                    for (let j = 0; j < 12; j++) {
+                        if (f[edgeFacelet[i][0]] === edgeColorChar[j][0] && f[edgeFacelet[i][1]] === edgeColorChar[j][1]) { ep[i] = j; eo[i] = 0; break; }
+                        if (f[edgeFacelet[i][0]] === edgeColorChar[j][1] && f[edgeFacelet[i][1]] === edgeColorChar[j][0]) { ep[i] = j; eo[i] = 1; break; }
+                    }
+                }
+                return { cp, co, ep, eo };
+            }
+            function isValid(c) {
+                if (c.cp.some(v => v === undefined) || c.ep.some(v => v === undefined)) return false;
+                const cpSet = new Set(c.cp), epSet = new Set(c.ep);
+                if (cpSet.size !== 8 || epSet.size !== 12) return false;
+                let co = 0; c.co.forEach(x => co += x); if (co % 3 !== 0) return false;
+                let eo = 0; c.eo.forEach(x => eo += x); if (eo % 2 !== 0) return false;
+                if (permParity(c.cp) !== permParity(c.ep)) return false;
+                return true;
+            }
+
+            return { extractFacelets, faceletsToCubie, isValid, solve };
+        })();
+        // --- End Two-Phase Solver ---
+
+        const COLORS = {
+            white: 0xffffff, yellow: 0xffff00, red: 0xff0000,
+            orange: 0xffa500, green: 0x00ff00, blue: 0x0000ff, black: 0x111111
+        };
+
+        const MOVES = [
+            { axis: 'x', layer: 1, name: 'R' },
+            { axis: 'x', layer: -1, name: 'L' },
+            { axis: 'y', layer: 1, name: 'U' },
+            { axis: 'y', layer: -1, name: 'D' },
+            { axis: 'z', layer: 1, name: 'F' },
+            { axis: 'z', layer: -1, name: 'B' }
+        ];
+
+        let scene, renderer;
+        let viewLeft = { camera: null, controls: null, left: 0, bottom: 0, width: 0.5, height: 1.0 };
+        let viewRight = { camera: null, controls: null, left: 0.5, bottom: 0, width: 0.5, height: 1.0 };
+        let cubeGroup, pivot, cubies = [];
+        let isAnimating = false;
+        let animationQueue = [];
+        
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let dragStart = null;
+        let activeView = null;
+        let isDragging = false;
+        
+        let solverQueue = [];
+        let totalSolveMoves = 0;
+        let totalSolveTurns = 0;
+        let completedSolveTurns = 0;
+        let stepLabel = 'Hint'; // processQueue가 step 모드일 때 사용할 레이블
+        let lastScrambleMoves = [];
+        let lastScrambleDisplayMoves = [];
+        let lastSolveLog = null;
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x222222);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.autoClear = false;
+            document.body.appendChild(renderer.domElement);
+
+            viewLeft.camera = new THREE.PerspectiveCamera(45, (window.innerWidth / 2) / window.innerHeight, 0.1, 1000);
+            viewLeft.camera.position.set(6, -6, -6);
+            viewLeft.controls = new OrbitControls(viewLeft.camera, renderer.domElement);
+            viewLeft.controls.enableDamping = true;
+
+            viewRight.camera = new THREE.PerspectiveCamera(45, (window.innerWidth / 2) / window.innerHeight, 0.1, 1000);
+            viewRight.camera.position.set(-6, 6, 6);
+            viewRight.controls = new OrbitControls(viewRight.camera, renderer.domElement);
+            viewRight.controls.enableDamping = true;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(10, 10, 10);
+            scene.add(directionalLight);
+
+            createCube();
+
+            window.addEventListener('resize', onWindowResize);
+            document.getElementById('scramble-btn').addEventListener('click', scramble);
+            document.getElementById('solve-2step-lbl-btn').addEventListener('click', solve2StepLBL);
+            document.getElementById('solve-all-lbl-btn').addEventListener('click', solveAllLBL);
+            document.getElementById('solve-1step-kociemba-btn').addEventListener('click', solve1StepKociemba);
+            document.getElementById('solve-all-kociemba-btn').addEventListener('click', solveAll);
+            document.getElementById('save-result-btn').addEventListener('click', saveLastSolveResult);
+            document.getElementById('reset-view-btn').addEventListener('click', resetCameraView);
+            document.getElementById('undo-btn').addEventListener('click', () => {
+                alert("In algorithmic solver mode, use 'Solve 1-Step' to progress towards the goal state.");
+            });
+            
+            const modal = document.getElementById('help-modal');
+            document.getElementById('help-btn').addEventListener('click', () => modal.style.display = 'flex');
+            document.getElementById('close-help').addEventListener('click', () => modal.style.display = 'none');
+            window.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+
+            renderer.domElement.addEventListener('pointerdown', onPointerDown);
+            renderer.domElement.addEventListener('pointermove', onPointerMove);
+            renderer.domElement.addEventListener('pointerup', onPointerUp);
+
+            animate();
+        }
+
+        function resetCameraView() {
+            viewLeft.camera.position.set(6, -6, -6);
+            viewLeft.controls.target.set(0, 0, 0);
+            viewLeft.controls.update();
+
+            viewRight.camera.position.set(-6, 6, 6);
+            viewRight.controls.target.set(0, 0, 0);
+            viewRight.controls.update();
+        }
+
+        function createCube() {
+            cubeGroup = new THREE.Group();
+            scene.add(cubeGroup);
+            pivot = new THREE.Group();
+            scene.add(pivot);
+            const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
+            for (let x = -1; x <= 1; x++) {
+                for (let y = -1; y <= 1; y++) {
+                    for (let z = -1; z <= 1; z++) {
+                        const materials = [
+                            new THREE.MeshLambertMaterial({ color: x === 1 ? COLORS.blue : COLORS.black }),
+                            new THREE.MeshLambertMaterial({ color: x === -1 ? COLORS.green : COLORS.black }),
+                            new THREE.MeshLambertMaterial({ color: y === 1 ? COLORS.white : COLORS.black }),
+                            new THREE.MeshLambertMaterial({ color: y === -1 ? COLORS.yellow : COLORS.black }),
+                            new THREE.MeshLambertMaterial({ color: z === 1 ? COLORS.red : COLORS.black }),
+                            new THREE.MeshLambertMaterial({ color: z === -1 ? COLORS.orange : COLORS.black })
+                        ];
+                        const cubie = new THREE.Mesh(geometry, materials);
+                        cubie.position.set(x, y, z);
+                        cubeGroup.add(cubie);
+                        cubies.push(cubie);
+                    }
+                }
+            }
+        }
+
+        function executeMoveString(moveStr, animateMove = true, customName = null) {
+            const base = moveStr[0];
+            const isPrime = moveStr.includes("'");
+            const isDouble = moveStr.includes("2");
+            
+            const moveDef = MOVES.find(m => m.name === base);
+            if (!moveDef) return;
+
+            let dir = moveDef.layer === 1 ? -1 : 1; 
+            if (base === 'U' || base === 'R' || base === 'F') dir = -1; 
+            if (base === 'D' || base === 'L' || base === 'B') dir = 1;
+            
+            if (isPrime) dir *= -1;
+            
+            const count = isDouble ? 2 : 1;
+            
+            for(let i=0; i<count; i++) {
+                let name = customName || (moveStr + (isDouble ? ` (${i+1}/2)` : ""));
+                rotateLayer(moveDef.axis, moveDef.layer, dir, animateMove, name);
+            }
+        }
+
+        function rotateLayer(axis, layer, direction, animateMove = true, name = "") {
+            if (isAnimating && animateMove) {
+                animationQueue.push({ axis, layer, direction, animateMove, name });
+                return;
+            }
+
+            if (!animateMove) {
+                applyInstantRotation(axis, layer, direction);
+                return;
+            }
+
+            isAnimating = true;
+            pivot.rotation.set(0, 0, 0);
+            pivot.updateMatrixWorld();
+            const layerCubies = getCubiesInLayer(axis, layer);
+            layerCubies.forEach(c => pivot.attach(c));
+
+            const targetRotation = { x: 0, y: 0, z: 0 };
+            targetRotation[axis] = (Math.PI / 2) * direction;
+
+            if (name) {
+                document.getElementById('move-list').innerText = name;
+            }
+
+            new TWEEN.Tween(pivot.rotation)
+                .to(targetRotation, 300)
+                .easing(TWEEN.Easing.Quadratic.Out)
+                .onComplete(() => {
+                    layerCubies.forEach(c => {
+                        cubeGroup.attach(c);
+                        snapCubie(c);
+                    });
+                    isAnimating = false;
+                    processQueue();
+                })
+                .start();
+        }
+
+        function getCubiesInLayer(axis, layer) {
+            return cubies.filter(c => {
+                const pos = new THREE.Vector3();
+                c.getWorldPosition(pos);
+                return Math.round(pos[axis]) === layer;
+            });
+        }
+
+        function snapCubie(c) {
+            c.position.set(Math.round(c.position.x), Math.round(c.position.y), Math.round(c.position.z));
+            c.rotation.set(
+                Math.round(c.rotation.x / (Math.PI / 2)) * (Math.PI / 2),
+                Math.round(c.rotation.y / (Math.PI / 2)) * (Math.PI / 2),
+                Math.round(c.rotation.z / (Math.PI / 2)) * (Math.PI / 2)
+            );
+        }
+
+        function applyInstantRotation(axis, layer, direction) {
+            pivot.rotation.set(0, 0, 0);
+            pivot.updateMatrixWorld();
+            const layerCubies = getCubiesInLayer(axis, layer);
+            layerCubies.forEach(c => pivot.attach(c));
+            pivot.rotation[axis] = (Math.PI / 2) * direction;
+            pivot.updateMatrixWorld();
+            layerCubies.forEach(c => {
+                cubeGroup.attach(c);
+                snapCubie(c);
+            });
+        }
+
+        function processQueue() {
+            if (animationQueue.length > 0) {
+                const m = animationQueue.shift();
+                rotateLayer(m.axis, m.layer, m.direction, m.animateMove, m.name);
+            } else if (solverQueue.length > 0) {
+                const moveStr = solverQueue.shift();
+                if (totalSolveMoves > 0) {
+                    const currentMoveIndex = totalSolveMoves - solverQueue.length;
+                    completedSolveTurns += moveStr.includes("2") ? 2 : 1;
+                    const text = `[Auto] ${moveStr} (Move ${currentMoveIndex}/${totalSolveMoves})`;
+                    executeMoveString(moveStr, true, text);
+                } else {
+                    const text = `[${stepLabel}] ${moveStr}`;
+                    executeMoveString(moveStr, true, text);
+                }
+            } else {
+                totalSolveMoves = 0;
+                totalSolveTurns = 0;
+                completedSolveTurns = 0;
+            }
+        }
+
+        function scramble() {
+            solverQueue = [];
+            totalSolveMoves = 0;
+            totalSolveTurns = 0;
+            completedSolveTurns = 0;
+            lastScrambleMoves = [];
+            lastScrambleDisplayMoves = [];
+            for (let i = 0; i < 20; i++) {
+                const move = MOVES[Math.floor(Math.random() * MOVES.length)];
+                const direction = Math.random() > 0.5 ? 1 : -1;
+                const moveName = getMoveNameFromRotation(move.name, direction);
+                lastScrambleMoves.push(moveName);
+                lastScrambleDisplayMoves.push(moveName);
+                rotateLayer(move.axis, move.layer, direction, false, moveName);
+            }
+            document.getElementById('move-list').innerText = "Scrambled!";
+        }
+
+        function getSolverSequence() {
+            const solver = new CubeSolver(cubies);
+            return solver.solve();
+        }
+
+        // Solve All 용: 2-phase 최적 솔버 (이동수 최소화). 실패 시 LBL로 폴백.
+        function getOptimalSequence() {
+            const solver = new CubeSolver(cubies);
+            solver.captureState();
+            if (solver.isCubeSolved()) return [];
+            try {
+                const facelets = TwoPhase.extractFacelets(solver);
+                const cubie = TwoPhase.faceletsToCubie(facelets);
+                if (!TwoPhase.isValid(cubie)) throw new Error('invalid cube state');
+                const moves = TwoPhase.solve(cubie, 800);
+                if (!moves) throw new Error('no solution found');
+                // 경계 상쇄/윈도우 최적화로 마무리 정리
+                const opt = new CubeSolver(cubies);
+                opt.moves = moves.slice();
+                opt.optimizeMoves();
+                return opt.moves;
+            } catch (e) {
+                console.warn('Two-phase solver failed, falling back to LBL:', e);
+                return solver.solve();
+            }
+        }
+
+function getMoveNameFromRotation(base, direction) {
+            const nonPrimeDirection = (base === 'U' || base === 'R' || base === 'F') ? -1 : 1;
+            return base + (direction === nonPrimeDirection ? '' : "'");
+        }
+
+        function createSolveLog(moves, solverName) {
+            return {
+                timestamp: new Date().toISOString(),
+                scramble: lastScrambleMoves.slice(),
+                solution: {
+                    solver: solverName,
+                    moves: moves.slice(),
+                    count: moves.length
+                }
+            };
+        }
+
+        function persistLastSolveLog() {
+            if (!lastSolveLog) return;
+            try {
+                localStorage.setItem('cubesol.lastSolveLog', JSON.stringify(lastSolveLog));
+            } catch (e) {
+                console.warn('Could not persist solve log:', e);
+            }
+        }
+
+        function saveLastSolveResult() {
+            if (!lastSolveLog) {
+                const saved = localStorage.getItem('cubesol.lastSolveLog');
+                if (saved) lastSolveLog = JSON.parse(saved);
+            }
+            if (!lastSolveLog) {
+                alert('No Solve All result has been recorded yet.');
+                return;
+            }
+
+            const blob = new Blob([JSON.stringify(lastSolveLog, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const stamp = (lastSolveLog.createdAt || new Date().toISOString()).replace(/[:.]/g, '-');
+            a.href = url;
+            a.download = `cubesol_last_solve_${stamp}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function solveAll() {
+            if (isAnimating) return;
+            document.getElementById('move-list').innerText = "[Solve All] Calculating optimal solution...";
+            // 무거운 계산(첫 호출 시 테이블 생성 포함)이 UI 페인트를 막지 않도록 한 틱 뒤 실행
+            setTimeout(() => {
+                solverQueue = getOptimalSequence();
+                if (solverQueue.length === 0) {
+                    document.getElementById('move-list').innerText = "Solved (or Cube already solved)";
+                } else {
+                    totalSolveMoves = solverQueue.length;
+                    totalSolveTurns = solverQueue.reduce((sum, move) => sum + (move.includes("2") ? 2 : 1), 0);
+                    completedSolveTurns = 0;
+                    lastSolveLog = createSolveLog(solverQueue, 'Kociemba');
+                    persistLastSolveLog();
+                    document.getElementById('move-list').innerText = `[Kociemba] Executing ${totalSolveMoves} moves...`;
+                    processQueue();
+                }
+            }, 30);
+        }
+
+        function solve2StepLBL() {
+            if (isAnimating) return;
+            const moves = getSolverSequence();
+            if (moves.length > 0) {
+                stepLabel = 'LBL';
+                solverQueue = moves.slice(0, 2);
+                totalSolveMoves = 0;
+                totalSolveTurns = 0;
+                completedSolveTurns = 0;
+                document.getElementById('move-list').innerText = `[LBL] Remaining: ${moves.length} moves`;
+                processQueue();
+            } else {
+                document.getElementById('move-list').innerText = "Already solved";
+            }
+        }
+
+        function solveAllLBL() {
+            if (isAnimating) return;
+            solverQueue = getSolverSequence();
+            if (solverQueue.length === 0) {
+                document.getElementById('move-list').innerText = "Already solved";
+            } else {
+                totalSolveMoves = solverQueue.length;
+                totalSolveTurns = solverQueue.reduce((sum, move) => sum + (move.includes("2") ? 2 : 1), 0);
+                completedSolveTurns = 0;
+                lastSolveLog = createSolveLog(solverQueue, 'LBL');
+                persistLastSolveLog();
+                stepLabel = 'LBL';
+                document.getElementById('move-list').innerText = `[LBL] Executing ${totalSolveMoves} moves...`;
+                processQueue();
+            }
+        }
+
+        function solve1StepKociemba() {
+            if (isAnimating) return;
+            document.getElementById('move-list').innerText = "[Kociemba] Calculating...";
+            setTimeout(() => {
+                const moves = getOptimalSequence();
+                if (moves.length > 0) {
+                    stepLabel = 'Kociemba';
+                    solverQueue = [moves[0]];
+                    totalSolveMoves = 0;
+                    totalSolveTurns = 0;
+                    completedSolveTurns = 0;
+                    document.getElementById('move-list').innerText = `[Kociemba] Remaining: ${moves.length} moves`;
+                    processQueue();
+                } else {
+                    document.getElementById('move-list').innerText = "Already solved";
+                }
+            }, 30);
+        }
+
+        // --- Interaction Logic ---
+        function onPointerDown(event) {
+            if (isAnimating || solverQueue.length > 0) return;
+            const rect = renderer.domElement.getBoundingClientRect();
+            const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            mouse.set(x, y);
+
+            activeView = (event.clientX - rect.left) < rect.width / 2 ? viewLeft : viewRight;
+            
+            const localX = (event.clientX - rect.left) < rect.width / 2 ? x * 2 + 1 : x * 2 - 1;
+            const localMouse = new THREE.Vector2(localX, y);
+
+            raycaster.setFromCamera(localMouse, activeView.camera);
+            const intersects = raycaster.intersectObjects(cubies);
+
+            if (intersects.length > 0) {
+                const hit = intersects[0];
+                const pos = new THREE.Vector3();
+                hit.object.getWorldPosition(pos);
+                
+                const absX = Math.abs(Math.round(pos.x));
+                const absY = Math.abs(Math.round(pos.y));
+                const absZ = Math.abs(Math.round(pos.z));
+                const sumAbs = absX + absY + absZ;
+
+                if (sumAbs >= 2) {
+                    isDragging = true;
+                    dragStart = {
+                        screen: new THREE.Vector2(event.clientX, event.clientY),
+                        cubie: hit.object,
+                        normal: hit.face.normal.clone().applyQuaternion(hit.object.quaternion),
+                        pos: pos.clone(),
+                        isEdge: sumAbs === 2
+                    };
+                    viewLeft.controls.enabled = false;
+                    viewRight.controls.enabled = false;
+                }
+            }
+        }
+
+        function onPointerMove(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            
+            if (!isDragging) {
+                if (x < rect.width / 2) {
+                    viewLeft.controls.enabled = true;
+                    viewRight.controls.enabled = false;
+                } else {
+                    viewLeft.controls.enabled = false;
+                    viewRight.controls.enabled = true;
+                }
+            }
+
+            if (dragStart && isDragging && !isAnimating) {
+                const deltaX = event.clientX - dragStart.screen.x;
+                const deltaY = event.clientY - dragStart.screen.y;
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+                if (distance > 30) {
+                    handleDragRotation(deltaX, deltaY);
+                    dragStart = null; 
+                }
+            }
+        }
+
+        function handleDragRotation(dx, dy) {
+            const camera = activeView.camera;
+            const normal = dragStart.normal;
+            
+            const faceAxes = ['x', 'y', 'z'].filter(a => Math.abs(normal[a]) < 0.5);
+            let rotationAxes = [...faceAxes];
+            
+            if (dragStart.isEdge) {
+                rotationAxes = rotationAxes.filter(a => Math.abs(Math.round(dragStart.pos[a])) === 1);
+            }
+
+            const dragDir = new THREE.Vector2(dx, -dy).normalize(); 
+            let bestMove = null;
+            let maxScore = -Infinity;
+
+            rotationAxes.forEach(axis => {
+                const tangentAxisName = faceAxes.find(a => a !== axis);
+                const tangentWorldDir = new THREE.Vector3();
+                tangentWorldDir[tangentAxisName] = 1;
+
+                const p1 = dragStart.pos.clone().project(camera);
+                const p2 = dragStart.pos.clone().add(tangentWorldDir).project(camera);
+                const screenTangent = new THREE.Vector2(p2.x - p1.x, p2.y - p1.y).normalize();
+
+                const dot = dragDir.dot(screenTangent);
+                const score = Math.abs(dot);
+
+                if (score > maxScore) {
+                    maxScore = score;
+                    const layer = Math.round(dragStart.pos[axis]);
+                    
+                    const axisVec = new THREE.Vector3();
+                    axisVec[axis] = 1;
+                    const arm = dragStart.pos.clone();
+                    const moveVec = new THREE.Vector3().crossVectors(axisVec, arm).normalize();
+                    
+                    const s1 = dragStart.pos.clone().project(camera);
+                    const s2 = dragStart.pos.clone().add(moveVec).project(camera);
+                    const screenMoveVec = new THREE.Vector2(s2.x - s1.x, s2.y - s1.y).normalize();
+                    
+                    const finalDir = dragDir.dot(screenMoveVec) > 0 ? 1 : -1;
+                    bestMove = { axis: axis, layer: layer, dir: finalDir };
+                }
+            });
+
+            if (dragStart.isEdge && maxScore < 0.7) return;
+
+            if (bestMove) {
+                const moveName = MOVES.find(m => m.axis === bestMove.axis && m.layer === bestMove.layer)?.name || "";
+                rotateLayer(bestMove.axis, bestMove.layer, bestMove.dir, true, moveName + (bestMove.dir === -1 ? "'" : ""));
+            }
+        }
+
+        function onPointerUp() {
+            isDragging = false;
+            dragStart = null;
+        }
+
+        function onWindowResize() {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            viewLeft.camera.aspect = (window.innerWidth / 2) / window.innerHeight;
+            viewLeft.camera.updateProjectionMatrix();
+            viewRight.camera.aspect = (window.innerWidth / 2) / window.innerHeight;
+            viewRight.camera.updateProjectionMatrix();
+        }
+
+        function renderView(view) {
+            const left = Math.floor(window.innerWidth * view.left);
+            const bottom = Math.floor(window.innerHeight * view.bottom);
+            const width = Math.floor(window.innerWidth * view.width);
+            const height = Math.floor(window.innerHeight * view.height);
+            renderer.setViewport(left, bottom, width, height);
+            renderer.setScissor(left, bottom, width, height);
+            renderer.setScissorTest(true);
+            renderer.render(scene, view.camera);
+        }
+
+        function animate(time) {
+            requestAnimationFrame(animate);
+            TWEEN.update(time);
+            viewLeft.controls.update();
+            viewRight.controls.update();
+            renderer.clear();
+            renderView(viewLeft);
+            renderView(viewRight);
+        }
+        init();
+    </script>
+</body>
+</html>
