@@ -22,8 +22,9 @@ A fully interactive, browser-based 3D Rubik's Cube simulator with a built-in dua
 
 1. **Run**: Double-click `cubesol.html` to open it in any modern browser.
 2. **Main Buttons**:
-   - **Scramble**: Scrambles the cube randomly with 20 moves.
-   - **Undo**: Sequentially reverses manual drag rotations.
+   - **⚡**: Scrambles the cube randomly with 20 moves.
+   - **↪️**: Sequentially reverses manual drag rotations.
+   - **🔴**: Halts automated solves immediately to allow manual control.
    - **☰ (Hamburger Menu)**: Opens options to reset angles, toggle views, save result, or view the help guide.
 3. **Solver Buttons**:
    - **LBL - 2-step**: Executes the next 2 moves of the LBL solver (beginner method hint).
@@ -104,8 +105,9 @@ Saves scramble and solution metadata:
 
 1. **실행**: 지원하는 웹 브라우저에서 `cubesol.html` 파일을 더블 클릭하여 바로 실행합니다.
 2. **메인 버튼**:
-   - **Scramble**: 무작위 20수로 큐브를 임의로 섞습니다.
-   - **Undo**: 사용자가 직접 조작한 큐브 회전을 역순으로 되돌립니다.
+   - **⚡**: 무작위 20수로 큐브를 임의로 섞습니다.
+   - **↪️**: 사용자가 직접 조작한 큐브 회전을 역순으로 되돌립니다.
+   - **🔴**: 자동 풀이 동작을 현재 단계에서 멈추고 사용자의 수동 조작을 가능하게 합니다.
    - **☰ (햄버거 메뉴)**: 카메라 각도 리셋, 싱글/듀얼 뷰 모드 전환, 솔브 결과 저장, 조작법 도움말을 열 수 있습니다.
 3. **솔버 제어 버튼**:
    - **LBL - 2-step**: LBL 공식의 다음 2수를 실행합니다 (사람이 따라 하기 쉬운 힌트).
