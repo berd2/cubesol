@@ -246,13 +246,8 @@
             <h3>🎮 Cube Controls Guide</h3>
             <ul>
                 <li><strong>Rotate Layer</strong>: Drag any cubie (1-9) in the desired direction.</li>
-                <li><strong>Corner Cubies (1,3,7,9)</strong>: Free to rotate in two adjacent directions.</li>
-                <li><strong>Edge Cubies (2,4,6,8)</strong>: Restricted to one specific direction.
-                    <ul>
-                        <li>Top/Bottom Edges (2,8): Drag Left/Right (Horizontal)</li>
-                        <li>Left/Right Edges (4,6): Drag Up/Down (Vertical)</li>
-                    </ul>
-                </li>
+                <li><strong>All Cubies (1-9)</strong>: Free to rotate in both vertical and horizontal directions (4-way moves).</li>
+                <li><strong>Middle Layers</strong>: Dragging a center (5) or edge (2,4,6,8) across its axis rotates the middle layers (M, E, S).</li>
                 <li><strong>Rotate Camera</strong>: Drag the empty background to adjust each view individually.</li>
                 <li><strong>Special Features</strong>:
                     <ul>
@@ -1608,6 +1603,40 @@
         let viewLeft = { camera: null, controls: null, left: 0, bottom: 0, width: 0.5, height: 1.0 };
         let viewRight = { camera: null, controls: null, left: 0.5, bottom: 0, width: 0.5, height: 1.0 };
         let isDualView = window.innerWidth > 768;
+        let roundedSquareTexture;
+
+        function createRoundedSquareTexture() {
+            const size = 128;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw background to match COLORS.black (0x111111)
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, size, size);
+            
+            // Draw rounded rectangle in the center
+            const margin = 6;
+            const rectSize = size - margin * 2;
+            const radius = 18;
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(margin + radius, margin);
+            ctx.lineTo(margin + rectSize - radius, margin);
+            ctx.quadraticCurveTo(margin + rectSize, margin, margin + rectSize, margin + radius);
+            ctx.lineTo(margin + rectSize, margin + rectSize - radius);
+            ctx.quadraticCurveTo(margin + rectSize, margin + rectSize, margin + rectSize - radius, margin + rectSize);
+            ctx.lineTo(margin + radius, margin + rectSize);
+            ctx.quadraticCurveTo(margin, margin + rectSize, margin, margin + rectSize - radius);
+            ctx.lineTo(margin, margin + radius);
+            ctx.quadraticCurveTo(margin, margin, margin + radius, margin);
+            ctx.closePath();
+            ctx.fill();
+            
+            roundedSquareTexture = new THREE.CanvasTexture(canvas);
+        }
 
         function toggleViewMode() {
             isDualView = !isDualView;
@@ -1652,6 +1681,7 @@
         let lastSolveLog = null;
 
         function init() {
+            createRoundedSquareTexture();
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x222222);
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -1749,12 +1779,12 @@
                 for (let y = -1; y <= 1; y++) {
                     for (let z = -1; z <= 1; z++) {
                         const materials = [
-                            new THREE.MeshLambertMaterial({ color: x === 1 ? COLORS.blue : COLORS.black }),
-                            new THREE.MeshLambertMaterial({ color: x === -1 ? COLORS.green : COLORS.black }),
-                            new THREE.MeshLambertMaterial({ color: y === 1 ? COLORS.white : COLORS.black }),
-                            new THREE.MeshLambertMaterial({ color: y === -1 ? COLORS.yellow : COLORS.black }),
-                            new THREE.MeshLambertMaterial({ color: z === 1 ? COLORS.red : COLORS.black }),
-                            new THREE.MeshLambertMaterial({ color: z === -1 ? COLORS.orange : COLORS.black })
+                            x === 1 ? new THREE.MeshLambertMaterial({ color: COLORS.blue, map: roundedSquareTexture }) : new THREE.MeshLambertMaterial({ color: COLORS.black }),
+                            x === -1 ? new THREE.MeshLambertMaterial({ color: COLORS.green, map: roundedSquareTexture }) : new THREE.MeshLambertMaterial({ color: COLORS.black }),
+                            y === 1 ? new THREE.MeshLambertMaterial({ color: COLORS.white, map: roundedSquareTexture }) : new THREE.MeshLambertMaterial({ color: COLORS.black }),
+                            y === -1 ? new THREE.MeshLambertMaterial({ color: COLORS.yellow, map: roundedSquareTexture }) : new THREE.MeshLambertMaterial({ color: COLORS.black }),
+                            z === 1 ? new THREE.MeshLambertMaterial({ color: COLORS.red, map: roundedSquareTexture }) : new THREE.MeshLambertMaterial({ color: COLORS.black }),
+                            z === -1 ? new THREE.MeshLambertMaterial({ color: COLORS.orange, map: roundedSquareTexture }) : new THREE.MeshLambertMaterial({ color: COLORS.black })
                         ];
                         const cubie = new THREE.Mesh(geometry, materials);
                         cubie.position.set(x, y, z);
@@ -2073,7 +2103,7 @@ function getMoveNameFromRotation(base, direction) {
                 const absZ = Math.abs(Math.round(pos.z));
                 const sumAbs = absX + absY + absZ;
 
-                if (sumAbs >= 2) {
+                if (sumAbs >= 1) {
                     isDragging = true;
                     dragStart = {
                         screen: new THREE.Vector2(event.clientX, event.clientY),
@@ -2125,10 +2155,6 @@ function getMoveNameFromRotation(base, direction) {
             
             const faceAxes = ['x', 'y', 'z'].filter(a => Math.abs(normal[a]) < 0.5);
             let rotationAxes = [...faceAxes];
-            
-            if (dragStart.isEdge) {
-                rotationAxes = rotationAxes.filter(a => Math.abs(Math.round(dragStart.pos[a])) === 1);
-            }
 
             const dragDir = new THREE.Vector2(dx, -dy).normalize(); 
             let bestMove = null;
@@ -2164,11 +2190,17 @@ function getMoveNameFromRotation(base, direction) {
                 }
             });
 
-            if (dragStart.isEdge && maxScore < 0.7) return;
-
             if (bestMove) {
-                const moveName = MOVES.find(m => m.axis === bestMove.axis && m.layer === bestMove.layer)?.name || "";
-                rotateLayer(bestMove.axis, bestMove.layer, bestMove.dir, true, moveName + (bestMove.dir === -1 ? "'" : ""));
+                let moveName = "";
+                if (bestMove.layer === 0) {
+                    if (bestMove.axis === 'x') moveName = 'M';
+                    else if (bestMove.axis === 'y') moveName = 'E';
+                    else if (bestMove.axis === 'z') moveName = 'S';
+                } else {
+                    moveName = MOVES.find(m => m.axis === bestMove.axis && m.layer === bestMove.layer)?.name || "";
+                }
+                const displayName = moveName ? (moveName + (bestMove.dir === -1 ? "'" : "")) : "";
+                rotateLayer(bestMove.axis, bestMove.layer, bestMove.dir, true, displayName);
             }
         }
 
