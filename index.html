@@ -45,8 +45,10 @@
             background-color: #666;
             transform: translateY(-2px);
         }
-        #scramble-btn { background-color: #e67e22; }
-        #undo-btn { background-color: #8e44ad; }
+        #scramble-btn { background-color: #782800; }
+        #scramble-btn:hover { background-color: #580800; }
+        #undo-btn { background-color: #3e3e5f; }
+        #undo-btn:hover { background-color: #212146; }
         #reset-view-btn { background-color: #7f8c8d; }
         #toggle-view-btn { background-color: #34495e; }
         #solve-2step-lbl-btn { background-color: #2471a3; }
@@ -133,12 +135,12 @@
             transform: scale(1.1);
         }
         #stop-btn {
-            background-color: #2c1d1c;
+            background-color: #5d3d21;
             font-size: 16px;
             border: 1px solid rgba(192, 57, 43, 0.4);
         }
         #stop-btn:hover {
-            background-color: #3d2321;
+            background-color: #2c2d1c;
         }
         #menu-btn {
             font-size: 22px;
@@ -233,12 +235,12 @@
         <div class="button-group">
             <div class="solver-group">
                 <span class="solver-label">LBL</span>
-                <button id="solve-2step-lbl-btn">2-step</button>
+                <button id="solve-2step-lbl-btn">+2</button>
                 <button id="solve-all-lbl-btn">Solve</button>
             </div>
             <div class="solver-group">
                 <span class="solver-label">Kociemba</span>
-                <button id="solve-1step-kociemba-btn">1-step</button>
+                <button id="solve-1step-kociemba-btn">+1</button>
                 <button id="solve-all-kociemba-btn">Solve</button>
             </div>
         </div>
@@ -256,6 +258,16 @@
         <button id="toggle-view-btn">Single view</button>
         <button id="save-result-btn">Save Result</button>
         <button id="show-help-btn">Help</button>
+        <div style="color: #ecf0f1; padding: 10px 15px; font-size: 13px; display: flex; justify-content: space-between; align-items: center;">
+            Speed:
+            <select id="speed-select" style="background: #333; color: white; border: 1px solid #555; border-radius: 4px; padding: 2px;">
+                <option value="180">FAST</option>
+                <option value="230">fast</option>
+                <option value="310" selected>normal</option>
+                <option value="430">slow</option>
+                <option value="620">SLOW</option>
+            </select>
+        </div>
     </div>
 
     <div id="help-modal">
@@ -271,7 +283,7 @@
                         <li><strong>⚡</strong>: Scramble the cube randomly.</li>
                         <li><strong>↪️</strong>: Undo the last manual move.</li>
                         <li><strong>🔴</strong>: Stop the auto-solver instantly.</li>
-                        <li><strong>☰</strong>: Open the menu for views and other options.</li>
+                        <li><strong>☰</strong>: Open the menu to reset camera angles, toggle single/dual view, save results, or adjust rotation speed.</li>
                     </ul>
                 </li>
             </ul>
@@ -1658,6 +1670,7 @@
         }
 
         let manualMoveHistory = [];
+        let rotateSpeed = 300;
 
         function getInverseMoveName(name) {
             if (!name) return "";
@@ -1767,6 +1780,9 @@
             document.getElementById('toggle-view-btn').addEventListener('click', toggleViewMode);
             document.getElementById('undo-btn').addEventListener('click', undo);
             document.getElementById('stop-btn').addEventListener('click', stopSolving);
+            document.getElementById('speed-select').addEventListener('change', (e) => {
+                rotateSpeed = parseInt(e.target.value);
+            });
             
             const menuBtn = document.getElementById('menu-btn');
             const hamburgerMenu = document.getElementById('hamburger-menu');
@@ -1889,8 +1905,8 @@
             }
 
             new TWEEN.Tween(pivot.rotation)
-                .to(targetRotation, 300)
-                .easing(TWEEN.Easing.Quadratic.Out)
+                .to(targetRotation, rotateSpeed)
+                .easing(TWEEN.Easing.Cubic.Out)
                 .onComplete(() => {
                     layerCubies.forEach(c => {
                         cubeGroup.attach(c);

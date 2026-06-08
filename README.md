@@ -1,6 +1,6 @@
 # 3D Rubik's Cube Simulator & Solver
 
-A fully interactive, browser-based 3D Rubik's Cube simulator with a built-in dual-solver engine. Implemented as a single standalone `cubesol.html` file using Three.js and TWEEN.js — no installation or local server required.
+A fully interactive, browser-based 3D Rubik's Cube simulator with a built-in dual-solver engine. Implemented as a single standalone `index.html` file using Three.js and TWEEN.js — no installation or local server required.
 
 ---
 
@@ -9,7 +9,8 @@ A fully interactive, browser-based 3D Rubik's Cube simulator with a built-in dua
 - **Viewport Mode (Single/Dual View)**: Supports both **Single View** (1 cube, 100% width) and **Dual View** (2 cubes side-by-side showing opposite sides). Automatically defaults to Single View on screens $\le$ 768px (mobile devices) for a cleaner, less cramped experience.
 - **Intuitive 4-Way Controls**: Drag any cubie (1-9) vertically or horizontally. Edge and center dragging across axes smoothly rotates the middle layers (M, E, S). Drag the empty background to adjust camera angles.
 - **Functional Undo**: Tracks manual drag-rotations in a history stack and lets you sequentially reverse them in animated steps.
-- **Hamburger Menu (☰)**: Accessible bottom-left pop-up menu housing less frequent options (Default Angle, Single/Dual View toggle, Save Result, and Help Guide) to keep the main screen clean.
+- **Hamburger Menu (☰)**: Accessible bottom-left pop-up menu housing less frequent options (Default Angle, Single/Dual View toggle, Save Result, Speed settings, and Help Guide) to keep the main screen clean.
+- **Speed Settings**: Adjust the layer rotation animation speed between 5 presets (FAST, fast, normal, slow, SLOW) via a drop-down menu inside the ☰ menu.
 - **Dual Solver Engine**: Features two independent solvers:
   - **Kociemba**: Generates optimal solutions (~20 moves) for minimal turns.
   - **LBL (Layer-by-Layer)**: Recreates a beginner-friendly solving path for step-by-step learning.
@@ -20,12 +21,12 @@ A fully interactive, browser-based 3D Rubik's Cube simulator with a built-in dua
 
 ## How to Use
 
-1. **Run**: Double-click `cubesol.html` to open it in any modern browser.
+1. **Run**: Double-click `index.html` to open it in any modern browser.
 2. **Main Buttons**:
    - **⚡**: Scrambles the cube randomly with 20 moves.
    - **↪️**: Sequentially reverses manual drag rotations.
    - **🔴**: Halts automated solves immediately to allow manual control.
-   - **☰ (Hamburger Menu)**: Opens options to reset angles, toggle views, save result, or view the help guide.
+   - **☰ (Hamburger Menu)**: Opens options to reset angles, toggle views, save result, adjust rotation speed (FAST, fast, normal, slow, SLOW), or view the help guide.
 3. **Solver Buttons**:
    - **LBL - 2-step**: Executes the next 2 moves of the LBL solver (beginner method hint).
    - **LBL - Solve**: Fully solves the cube using the LBL solver (~80-130 moves).
@@ -83,7 +84,7 @@ Saves scramble and solution metadata:
 
 # 3D 루빅스 큐브 시뮬레이터 & 솔버 (Korean)
 
-웹 브라우저에서 실행 가능한 인터랙티브 3D 루빅스 큐브 시뮬레이터 및 듀얼 솔버 엔진입니다. Three.js와 TWEEN.js를 기반으로 별도 설치 없이 단일 `cubesol.html` 파일로 실행됩니다.
+웹 브라우저에서 실행 가능한 인터랙티브 3D 루빅스 큐브 시뮬레이터 및 듀얼 솔버 엔진입니다. Three.js와 TWEEN.js를 기반으로 별도 설치 없이 단일 `index.html` 파일로 실행됩니다.
 
 ---
 
@@ -92,7 +93,8 @@ Saves scramble and solution metadata:
 - **뷰포트 모드 (Single/Dual View)**: 큐브 1개만 화면 가득 보여주는 **싱글 뷰(Single View)**와 양면을 한눈에 보여주는 **듀얼 뷰(Dual View)**를 모두 지원합니다. 화면 폭이 768px 이하(모바일 기기)일 때는 더 쾌적하게 큐브를 조작할 수 있도록 자동으로 싱글 뷰가 적용됩니다.
 - **직관적인 4방향 드래그 조작**: 큐브의 모든 조각(1~9번)을 가로나 세로 어느 방향으로든 자유롭게 조작할 수 있습니다. 엣지나 센터 조각을 축을 가로질러 드래그하면 가운데 축 레이어(M, E, S 레이어)가 부드럽게 회전합니다. 빈 배경을 드래그하면 카메라 시점을 회전할 수 있습니다.
 - **이력 기반 실행 취소 (Undo)**: 사용자가 직접 조작한 레이어 이동 이력을 스택에 기록하며, `Undo` 버튼 클릭 시 역방향으로 동작하여 이전 상태로 차례차례 안전하게 복원합니다.
-- **슬라이드 햄버거 메뉴(☰)**: 좌측 하단에 위치한 ☰ 버튼을 통해 옵션 메뉴(기본 각도 정렬, 싱글/듀얼 뷰 전환, 결과 저장, 도움말 가이드)를 열 수 있어, 모바일이나 좁은 화면에서 UI가 깔끔하게 정돈됩니다.
+- **슬라이드 햄버거 메뉴(☰)**: 좌측 하단에 위치한 ☰ 버튼을 통해 옵션 메뉴(기본 각도 정렬, 싱글/듀얼 뷰 전환, 결과 저장, 회전 속도 조절, 도움말 가이드)를 열 수 있어, 모바일이나 좁은 화면에서 UI가 깔끔하게 정돈됩니다.
+- **회전 속도 조절 (Speed Settings)**: ☰ 메뉴 내 드롭다운 선택을 통해 레이어 회전 애니메이션 속도를 5단계(FAST, fast, normal, slow, SLOW)로 조절할 수 있습니다.
 - **듀얼 솔버 엔진 내장**:
   - **Kociemba**: 최소 회전수(평균 약 20수)에 최적화된 해법을 제시합니다.
   - **LBL (Layer-by-Layer)**: 초보자도 한 단계씩 보고 쉽게 따라 할 수 있도록 레이어 단위의 인간 친화적 단계별 힌트를 제공합니다.
@@ -103,12 +105,12 @@ Saves scramble and solution metadata:
 
 ## 사용 방법
 
-1. **실행**: 지원하는 웹 브라우저에서 `cubesol.html` 파일을 더블 클릭하여 바로 실행합니다.
+1. **실행**: 지원하는 웹 브라우저에서 `index.html` 파일을 더블 클릭하여 바로 실행합니다.
 2. **메인 버튼**:
    - **⚡**: 무작위 20수로 큐브를 임의로 섞습니다.
    - **↪️**: 사용자가 직접 조작한 큐브 회전을 역순으로 되돌립니다.
    - **🔴**: 자동 풀이 동작을 현재 단계에서 멈추고 사용자의 수동 조작을 가능하게 합니다.
-   - **☰ (햄버거 메뉴)**: 카메라 각도 리셋, 싱글/듀얼 뷰 모드 전환, 솔브 결과 저장, 조작법 도움말을 열 수 있습니다.
+   - **☰ (햄버거 메뉴)**: 카메라 각도 리셋, 싱글/듀얼 뷰 모드 전환, 솔브 결과 저장, 회전 속도 조절(5단계), 조작법 도움말을 열 수 있습니다.
 3. **솔버 제어 버튼**:
    - **LBL - 2-step**: LBL 공식의 다음 2수를 실행합니다 (사람이 따라 하기 쉬운 힌트).
    - **LBL - Solve**: LBL 공식을 이용하여 전체 풀이를 완료합니다 (~80-130수).
