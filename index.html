@@ -317,45 +317,63 @@
             }
 
             captureState() {
-                this.stickers = [];
-                const directions = [
-                    { n: new THREE.Vector3(1, 0, 0), name: 'R' },
-                    { n: new THREE.Vector3(-1, 0, 0), name: 'L' },
-                    { n: new THREE.Vector3(0, 1, 0), name: 'U' },
-                    { n: new THREE.Vector3(0, -1, 0), name: 'D' },
-                    { n: new THREE.Vector3(0, 0, 1), name: 'F' },
-                    { n: new THREE.Vector3(0, 0, -1), name: 'B' }
-                ];
+                if (!this._sharedWorldPos) {
+                    this._sharedWorldPos = new THREE.Vector3();
+                    this._sharedWorldDir = new THREE.Vector3();
+                    this._directions = [
+                        { n: new THREE.Vector3(1, 0, 0), name: 'R' },
+                        { n: new THREE.Vector3(-1, 0, 0), name: 'L' },
+                        { n: new THREE.Vector3(0, 1, 0), name: 'U' },
+                        { n: new THREE.Vector3(0, -1, 0), name: 'D' },
+                        { n: new THREE.Vector3(0, 0, 1), name: 'F' },
+                        { n: new THREE.Vector3(0, 0, -1), name: 'B' }
+                    ];
+                }
+
+                let stickerIdx = 0;
 
                 this.cubies.forEach(cubie => {
-                    const worldPos = new THREE.Vector3();
-                    cubie.getWorldPosition(worldPos);
-                    const x = Math.round(worldPos.x);
-                    const y = Math.round(worldPos.y);
-                    const z = Math.round(worldPos.z);
+                    cubie.getWorldPosition(this._sharedWorldPos);
+                    const x = Math.round(this._sharedWorldPos.x);
+                    const y = Math.round(this._sharedWorldPos.y);
+                    const z = Math.round(this._sharedWorldPos.z);
 
                     const materials = cubie.material;
-                    directions.forEach((d, idx) => {
-                        const worldDir = d.n.clone().applyQuaternion(cubie.quaternion);
-                        const wx = Math.round(worldDir.x);
-                        const wy = Math.round(worldDir.y);
-                        const wz = Math.round(worldDir.z);
+                    this._directions.forEach((d, idx) => {
+                        this._sharedWorldDir.copy(d.n).applyQuaternion(cubie.quaternion);
+                        const wx = Math.round(this._sharedWorldDir.x);
+                        const wy = Math.round(this._sharedWorldDir.y);
+                        const wz = Math.round(this._sharedWorldDir.z);
 
                         if (wx !== 0 || wy !== 0 || wz !== 0) {
                             const color = materials[idx].color.getHex();
-                            this.stickers.push({
-                                pos: new THREE.Vector3(x, y, z),
-                                norm: new THREE.Vector3(wx, wy, wz),
-                                color: color
-                            });
+
+                            if (stickerIdx >= this.stickers.length) {
+                                this.stickers.push({
+                                    pos: new THREE.Vector3(x, y, z),
+                                    norm: new THREE.Vector3(wx, wy, wz),
+                                    color: color
+                                });
+                            } else {
+                                const s = this.stickers[stickerIdx];
+                                s.pos.set(x, y, z);
+                                s.norm.set(wx, wy, wz);
+                                s.color = color;
+                            }
+                            stickerIdx++;
 
                             if (Math.abs(x) + Math.abs(y) + Math.abs(z) === 1 && x === wx && y === wy && z === wz) {
-                                const faceName = directions.find(dir => dir.n.x === wx && dir.n.y === wy && dir.n.z === wz).name;
+                                const faceName = this._directions.find(dir => dir.n.x === wx && dir.n.y === wy && dir.n.z === wz).name;
                                 this.centers[faceName] = color;
                             }
                         }
                     });
                 });
+
+                // Trim array if fewer stickers are captured
+                if (this.stickers.length > stickerIdx) {
+                    this.stickers.length = stickerIdx;
+                }
             }
 
             addMove(name) {
@@ -982,20 +1000,69 @@
                 return sequence;
             }
 
+            _initSavedStateBuffer() {
+                if (!this._savedStateBuffer) {
+                    this._savedStateBuffer = Array.from({ length: 54 }, () => ({
+                        pos: new THREE.Vector3(),
+                        norm: new THREE.Vector3(),
+                        color: 0
+                    }));
+                    this._savedCubieBuffer = Array.from({ length: 27 }, () => ({
+                        position: new THREE.Vector3(),
+                        quaternion: new THREE.Quaternion()
+                    }));
+                }
+            }
+
+            saveState() {
+                this._initSavedStateBuffer();
+                for (let i = 0; i < this.stickers.length; i++) {
+                    const s = this.stickers[i];
+                    const d = this._savedStateBuffer[i];
+                    d.pos.copy(s.pos);
+                    d.norm.copy(s.norm);
+                    d.color = s.color;
+                }
+                for (let i = 0; i < this.cubies.length; i++) {
+                    const c = this.cubies[i];
+                    const d = this._savedCubieBuffer[i];
+                    d.position.copy(c.position);
+                    d.quaternion.copy(c.quaternion);
+                }
+            }
+
+            restoreState() {
+                for (let i = 0; i < this.stickers.length; i++) {
+                    const s = this.stickers[i];
+                    const d = this._savedStateBuffer[i];
+                    s.pos.copy(d.pos);
+                    s.norm.copy(d.norm);
+                    s.color = d.color;
+                }
+                for (let i = 0; i < this.cubies.length; i++) {
+                    const c = this.cubies[i];
+                    const d = this._savedCubieBuffer[i];
+                    c.position.copy(d.position);
+                    c.quaternion.copy(d.quaternion);
+                }
+            }
+
             testMoveSequence(sequence, predicate) {
                 const startLen = this.moves.length;
+                this.saveState();
                 this.applyMoveSequence(sequence);
                 const result = predicate();
-                this.applyMoveSequence(this.invertAlg(sequence));
+                this.restoreState();
                 this.moves.length = startLen;
                 return result;
             }
 
             scoreMoveSequence(sequence, scorer) {
                 const startLen = this.moves.length;
+                this.saveState();
                 this.applyMoveSequence(sequence);
                 const score = scorer();
-                this.applyMoveSequence(this.invertAlg(sequence));
+                this.restoreState();
                 this.moves.length = startLen;
                 return score;
             }
@@ -1172,7 +1239,10 @@
                 });
 
                 CubeSolver.stickerLocations = locations;
-                CubeSolver.stickerLocationIndex = new Map(locations.map((loc, idx) => [CubeSolver.locationKey(loc.pos, loc.norm), idx]));
+                CubeSolver.stickerLocationIndex = new Int32Array(729);
+                locations.forEach((loc, idx) => {
+                    CubeSolver.stickerLocationIndex[CubeSolver.locationKey(loc.pos, loc.norm)] = idx;
+                });
                 CubeSolver.identityStickerState = locations.map((_, idx) => idx);
                 CubeSolver.identityStickerKey = CubeSolver.stickerStateKey(CubeSolver.identityStickerState);
                 return {
@@ -1182,11 +1252,11 @@
             }
 
             static stickerStateKey(state) {
-                return state.join(',');
+                return String.fromCharCode.apply(null, state);
             }
 
             static locationKey(pos, norm) {
-                return `${pos[0]},${pos[1]},${pos[2]}|${norm[0]},${norm[1]},${norm[2]}`;
+                return (pos[0] + 1) * 243 + (pos[1] + 1) * 81 + (pos[2] + 1) * 27 + (norm[0] + 1) * 9 + (norm[1] + 1) * 3 + (norm[2] + 1);
             }
 
             static applyMoveToStickerState(state, move) {
@@ -1211,7 +1281,7 @@
 
                         const rotatedPos = CubeSolver.rotateCoord(loc.pos, def.axis, faceDir * dir);
                         const rotatedNorm = CubeSolver.rotateCoord(loc.norm, def.axis, faceDir * dir);
-                        return CubeSolver.stickerLocationIndex.get(CubeSolver.locationKey(rotatedPos, rotatedNorm));
+                        return CubeSolver.stickerLocationIndex[CubeSolver.locationKey(rotatedPos, rotatedNorm)];
                     });
                 }
 
@@ -1402,72 +1472,197 @@
                 if (tablesReady) return;
 
                 // Phase1 이동 테이블
-                twistMove = new Uint16Array(2187 * 18);
-                for (let t = 0; t < 2187; t++) {
-                    const co = setTwist(t);
-                    for (let m = 0; m < 18; m++) {
-                        const mv = moves18[m]; const nco = new Array(8);
-                        for (let i = 0; i < 8; i++) nco[i] = (co[mv.cp[i]] + mv.co[i]) % 3;
-                        twistMove[t * 18 + m] = getTwist(nco);
+                if (!twistMove) {
+                    twistMove = new Uint16Array(2187 * 18);
+                    for (let t = 0; t < 2187; t++) {
+                        const co = setTwist(t);
+                        for (let m = 0; m < 18; m++) {
+                            const mv = moves18[m]; const nco = new Array(8);
+                            for (let i = 0; i < 8; i++) nco[i] = (co[mv.cp[i]] + mv.co[i]) % 3;
+                            twistMove[t * 18 + m] = getTwist(nco);
+                        }
                     }
                 }
-                flipMove = new Uint16Array(2048 * 18);
-                for (let t = 0; t < 2048; t++) {
-                    const eo = setFlip(t);
-                    for (let m = 0; m < 18; m++) {
-                        const mv = moves18[m]; const neo = new Array(12);
-                        for (let i = 0; i < 12; i++) neo[i] = (eo[mv.ep[i]] + mv.eo[i]) % 2;
-                        flipMove[t * 18 + m] = getFlip(neo);
+                if (!flipMove) {
+                    flipMove = new Uint16Array(2048 * 18);
+                    for (let t = 0; t < 2048; t++) {
+                        const eo = setFlip(t);
+                        for (let m = 0; m < 18; m++) {
+                            const mv = moves18[m]; const neo = new Array(12);
+                            for (let i = 0; i < 12; i++) neo[i] = (eo[mv.ep[i]] + mv.eo[i]) % 2;
+                            flipMove[t * 18 + m] = getFlip(neo);
+                        }
                     }
                 }
-                sliceMove = new Uint16Array(495 * 18);
-                for (let c = 0; c < 495; c++) {
-                    const ep = setSliceEp(c);
-                    for (let m = 0; m < 18; m++) {
-                        const mv = moves18[m]; const nep = new Array(12);
-                        for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
-                        sliceMove[c * 18 + m] = getSlice(nep);
+                if (!sliceMove) {
+                    sliceMove = new Uint16Array(495 * 18);
+                    for (let c = 0; c < 495; c++) {
+                        const ep = setSliceEp(c);
+                        for (let m = 0; m < 18; m++) {
+                            const mv = moves18[m]; const nep = new Array(12);
+                            for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
+                            sliceMove[c * 18 + m] = getSlice(nep);
+                        }
                     }
                 }
 
                 // Phase2 이동 테이블 (10수)
-                cpMove = new Uint16Array(40320 * 10);
-                for (let idx = 0; idx < 40320; idx++) {
-                    const cp = permUnrank(idx, 8);
-                    for (let k = 0; k < 10; k++) {
-                        const mv = moves18[phase2Moves[k]]; const ncp = new Array(8);
-                        for (let i = 0; i < 8; i++) ncp[i] = cp[mv.cp[i]];
-                        cpMove[idx * 10 + k] = permRank(ncp);
+                if (!cpMove) {
+                    cpMove = new Uint16Array(40320 * 10);
+                    for (let idx = 0; idx < 40320; idx++) {
+                        const cp = permUnrank(idx, 8);
+                        for (let k = 0; k < 10; k++) {
+                            const mv = moves18[phase2Moves[k]]; const ncp = new Array(8);
+                            for (let i = 0; i < 8; i++) ncp[i] = cp[mv.cp[i]];
+                            cpMove[idx * 10 + k] = permRank(ncp);
+                        }
                     }
                 }
-                udeMove = new Uint16Array(40320 * 10);
-                for (let idx = 0; idx < 40320; idx++) {
-                    const e8 = permUnrank(idx, 8);
-                    const ep = e8.concat([8, 9, 10, 11]);
-                    for (let k = 0; k < 10; k++) {
-                        const mv = moves18[phase2Moves[k]]; const nep = new Array(12);
-                        for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
-                        udeMove[idx * 10 + k] = permRank(nep.slice(0, 8));
+                if (!udeMove) {
+                    udeMove = new Uint16Array(40320 * 10);
+                    for (let idx = 0; idx < 40320; idx++) {
+                        const e8 = permUnrank(idx, 8);
+                        const ep = e8.concat([8, 9, 10, 11]);
+                        for (let k = 0; k < 10; k++) {
+                            const mv = moves18[phase2Moves[k]]; const nep = new Array(12);
+                            for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
+                            udeMove[idx * 10 + k] = permRank(nep.slice(0, 8));
+                        }
                     }
                 }
-                sleMove = new Uint8Array(24 * 10);
-                for (let idx = 0; idx < 24; idx++) {
-                    const s4 = permUnrank(idx, 4).map(x => x + 8);
-                    const ep = [0, 1, 2, 3, 4, 5, 6, 7].concat(s4);
-                    for (let k = 0; k < 10; k++) {
-                        const mv = moves18[phase2Moves[k]]; const nep = new Array(12);
-                        for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
-                        sleMove[idx * 10 + k] = permRank(nep.slice(8, 12).map(x => x - 8));
+                if (!sleMove) {
+                    sleMove = new Uint8Array(24 * 10);
+                    for (let idx = 0; idx < 24; idx++) {
+                        const s4 = permUnrank(idx, 4).map(x => x + 8);
+                        const ep = [0, 1, 2, 3, 4, 5, 6, 7].concat(s4);
+                        for (let k = 0; k < 10; k++) {
+                            const mv = moves18[phase2Moves[k]]; const nep = new Array(12);
+                            for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
+                            sleMove[idx * 10 + k] = permRank(nep.slice(8, 12).map(x => x - 8));
+                        }
                     }
                 }
 
                 // 가지치기 테이블 (목표에서 BFS)
-                pruneTwistSlice = bfsPrune(2187, 495, twistMove, sliceMove, 18, 0, SLICE_SOLVED);
-                pruneFlipSlice = bfsPrune(2048, 495, flipMove, sliceMove, 18, 0, SLICE_SOLVED);
-                pruneCpSle = bfsPrune(40320, 24, cpMove, sleMove, 10, 0, 0);
-                pruneUdeSle = bfsPrune(40320, 24, udeMove, sleMove, 10, 0, 0);
+                if (!pruneTwistSlice) pruneTwistSlice = bfsPrune(2187, 495, twistMove, sliceMove, 18, 0, SLICE_SOLVED);
+                if (!pruneFlipSlice) pruneFlipSlice = bfsPrune(2048, 495, flipMove, sliceMove, 18, 0, SLICE_SOLVED);
+                if (!pruneCpSle) pruneCpSle = bfsPrune(40320, 24, cpMove, sleMove, 10, 0, 0);
+                if (!pruneUdeSle) pruneUdeSle = bfsPrune(40320, 24, udeMove, sleMove, 10, 0, 0);
 
                 tablesReady = true;
+            }
+
+            let buildPromise = null;
+            function buildTablesAsync() {
+                if (tablesReady) return Promise.resolve();
+                if (buildPromise) return buildPromise;
+
+                buildPromise = new Promise(resolve => {
+                    const tasks = [
+                        () => {
+                            if (!twistMove) {
+                                twistMove = new Uint16Array(2187 * 18);
+                                for (let t = 0; t < 2187; t++) {
+                                    const co = setTwist(t);
+                                    for (let m = 0; m < 18; m++) {
+                                        const mv = moves18[m]; const nco = new Array(8);
+                                        for (let i = 0; i < 8; i++) nco[i] = (co[mv.cp[i]] + mv.co[i]) % 3;
+                                        twistMove[t * 18 + m] = getTwist(nco);
+                                    }
+                                }
+                            }
+                        },
+                        () => {
+                            if (!flipMove) {
+                                flipMove = new Uint16Array(2048 * 18);
+                                for (let t = 0; t < 2048; t++) {
+                                    const eo = setFlip(t);
+                                    for (let m = 0; m < 18; m++) {
+                                        const mv = moves18[m]; const neo = new Array(12);
+                                        for (let i = 0; i < 12; i++) neo[i] = (eo[mv.ep[i]] + mv.eo[i]) % 2;
+                                        flipMove[t * 18 + m] = getFlip(neo);
+                                    }
+                                }
+                            }
+                        },
+                        () => {
+                            if (!sliceMove) {
+                                sliceMove = new Uint16Array(495 * 18);
+                                for (let c = 0; c < 495; c++) {
+                                    const ep = setSliceEp(c);
+                                    for (let m = 0; m < 18; m++) {
+                                        const mv = moves18[m]; const nep = new Array(12);
+                                        for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
+                                        sliceMove[c * 18 + m] = getSlice(nep);
+                                    }
+                                }
+                            }
+                        },
+                        () => {
+                            if (!cpMove) {
+                                cpMove = new Uint16Array(40320 * 10);
+                                for (let idx = 0; idx < 40320; idx++) {
+                                    const cp = permUnrank(idx, 8);
+                                    for (let k = 0; k < 10; k++) {
+                                        const mv = moves18[phase2Moves[k]]; const ncp = new Array(8);
+                                        for (let i = 0; i < 8; i++) ncp[i] = cp[mv.cp[i]];
+                                        cpMove[idx * 10 + k] = permRank(ncp);
+                                    }
+                                }
+                            }
+                        },
+                        () => {
+                            if (!udeMove) {
+                                udeMove = new Uint16Array(40320 * 10);
+                                for (let idx = 0; idx < 40320; idx++) {
+                                    const e8 = permUnrank(idx, 8);
+                                    const ep = e8.concat([8, 9, 10, 11]);
+                                    for (let k = 0; k < 10; k++) {
+                                        const mv = moves18[phase2Moves[k]]; const nep = new Array(12);
+                                        for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
+                                        udeMove[idx * 10 + k] = permRank(nep.slice(0, 8));
+                                    }
+                                }
+                            }
+                        },
+                        () => {
+                            if (!sleMove) {
+                                sleMove = new Uint8Array(24 * 10);
+                                for (let idx = 0; idx < 24; idx++) {
+                                    const s4 = permUnrank(idx, 4).map(x => x + 8);
+                                    const ep = [0, 1, 2, 3, 4, 5, 6, 7].concat(s4);
+                                    for (let k = 0; k < 10; k++) {
+                                        const mv = moves18[phase2Moves[k]]; const nep = new Array(12);
+                                        for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
+                                        sleMove[idx * 10 + k] = permRank(nep.slice(8, 12).map(x => x - 8));
+                                    }
+                                }
+                            }
+                        },
+                        () => { if (!pruneTwistSlice) pruneTwistSlice = bfsPrune(2187, 495, twistMove, sliceMove, 18, 0, SLICE_SOLVED); },
+                        () => { if (!pruneFlipSlice) pruneFlipSlice = bfsPrune(2048, 495, flipMove, sliceMove, 18, 0, SLICE_SOLVED); },
+                        () => { if (!pruneCpSle) pruneCpSle = bfsPrune(40320, 24, cpMove, sleMove, 10, 0, 0); },
+                        () => { if (!pruneUdeSle) pruneUdeSle = bfsPrune(40320, 24, udeMove, sleMove, 10, 0, 0); }
+                    ];
+
+                    let i = 0;
+                    function step() {
+                        if (tablesReady) {
+                            resolve();
+                            return;
+                        }
+                        if (i < tasks.length) {
+                            tasks[i]();
+                            i++;
+                            setTimeout(step, 10);
+                        } else {
+                            tablesReady = true;
+                            resolve();
+                        }
+                    }
+                    setTimeout(step, 10);
+                });
+                return buildPromise;
             }
 
             function bfsPrune(size1, size2, moveT1, moveT2, nmoves, goal1, goal2) {
@@ -1612,7 +1807,7 @@
                 return true;
             }
 
-            return { extractFacelets, faceletsToCubie, isValid, solve };
+            return { extractFacelets, faceletsToCubie, isValid, solve, buildTablesAsync };
         })();
         // --- End Two-Phase Solver ---
 
@@ -1742,6 +1937,7 @@
         let lastSolveLog = null;
 
         function init() {
+            TwoPhase.buildTablesAsync();
             createRoundedSquareTexture();
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x222222);
