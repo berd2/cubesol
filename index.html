@@ -260,10 +260,10 @@
     </div>
 
     <div id="control-stack">
-        <button id="scramble-btn" class="stack-btn" title="Scramble">⚡</button>
-        <button id="undo-btn" class="stack-btn" title="Undo">↪️</button>
-        <button id="stop-btn" class="stack-btn" title="Stop Solving">🔴</button>
-        <button id="menu-btn" class="stack-btn" title="Menu">☰</button>
+        <button id="scramble-btn" class="stack-btn" title="Scramble" aria-label="Scramble">⚡</button>
+        <button id="undo-btn" class="stack-btn" title="Undo" aria-label="Undo last move">↪️</button>
+        <button id="stop-btn" class="stack-btn" title="Stop Solving" aria-label="Stop solving">🔴</button>
+        <button id="menu-btn" class="stack-btn" title="Menu" aria-label="Open menu" aria-haspopup="true" aria-expanded="false">☰</button>
     </div>
 
     <div id="hamburger-menu">
@@ -283,9 +283,9 @@
         </div>
     </div>
 
-    <div id="help-modal">
+    <div id="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
         <div id="help-content">
-            <h3>🎮 Cube Controls Guide</h3>
+            <h3 id="help-modal-title">🎮 Cube Controls Guide</h3>
             <ul>
                 <li><strong>Rotate Layer</strong>: Drag any cubie (1-9) in the desired direction.</li>
                 <li><strong>All Cubies (1-9)</strong>: Free to rotate in both vertical and horizontal directions (4-way moves).</li>
@@ -1481,11 +1481,11 @@
             let cpMove, udeMove, sleMove;
             let pruneTwistSlice, pruneFlipSlice, pruneCpSle, pruneUdeSle;
 
-            function buildTables() {
-                if (tablesReady) return;
-
+            // 각 단계는 sync(buildTables)와 async(buildTablesAsync)에서 공유되는 테이블 빌더
+            const tableBuilders = [
                 // Phase1 이동 테이블
-                if (!twistMove) {
+                () => {
+                    if (twistMove) return;
                     twistMove = new Uint16Array(2187 * 18);
                     for (let t = 0; t < 2187; t++) {
                         const co = setTwist(t);
@@ -1495,8 +1495,9 @@
                             twistMove[t * 18 + m] = getTwist(nco);
                         }
                     }
-                }
-                if (!flipMove) {
+                },
+                () => {
+                    if (flipMove) return;
                     flipMove = new Uint16Array(2048 * 18);
                     for (let t = 0; t < 2048; t++) {
                         const eo = setFlip(t);
@@ -1506,8 +1507,9 @@
                             flipMove[t * 18 + m] = getFlip(neo);
                         }
                     }
-                }
-                if (!sliceMove) {
+                },
+                () => {
+                    if (sliceMove) return;
                     sliceMove = new Uint16Array(495 * 18);
                     for (let c = 0; c < 495; c++) {
                         const ep = setSliceEp(c);
@@ -1517,10 +1519,10 @@
                             sliceMove[c * 18 + m] = getSlice(nep);
                         }
                     }
-                }
-
+                },
                 // Phase2 이동 테이블 (10수)
-                if (!cpMove) {
+                () => {
+                    if (cpMove) return;
                     cpMove = new Uint16Array(40320 * 10);
                     for (let idx = 0; idx < 40320; idx++) {
                         const cp = permUnrank(idx, 8);
@@ -1530,8 +1532,9 @@
                             cpMove[idx * 10 + k] = permRank(ncp);
                         }
                     }
-                }
-                if (!udeMove) {
+                },
+                () => {
+                    if (udeMove) return;
                     udeMove = new Uint16Array(40320 * 10);
                     for (let idx = 0; idx < 40320; idx++) {
                         const e8 = permUnrank(idx, 8);
@@ -1542,8 +1545,9 @@
                             udeMove[idx * 10 + k] = permRank(nep.slice(0, 8));
                         }
                     }
-                }
-                if (!sleMove) {
+                },
+                () => {
+                    if (sleMove) return;
                     sleMove = new Uint8Array(24 * 10);
                     for (let idx = 0; idx < 24; idx++) {
                         const s4 = permUnrank(idx, 4).map(x => x + 8);
@@ -1554,14 +1558,17 @@
                             sleMove[idx * 10 + k] = permRank(nep.slice(8, 12).map(x => x - 8));
                         }
                     }
-                }
-
+                },
                 // 가지치기 테이블 (목표에서 BFS)
-                if (!pruneTwistSlice) pruneTwistSlice = bfsPrune(2187, 495, twistMove, sliceMove, 18, 0, SLICE_SOLVED);
-                if (!pruneFlipSlice) pruneFlipSlice = bfsPrune(2048, 495, flipMove, sliceMove, 18, 0, SLICE_SOLVED);
-                if (!pruneCpSle) pruneCpSle = bfsPrune(40320, 24, cpMove, sleMove, 10, 0, 0);
-                if (!pruneUdeSle) pruneUdeSle = bfsPrune(40320, 24, udeMove, sleMove, 10, 0, 0);
+                () => { if (!pruneTwistSlice) pruneTwistSlice = bfsPrune(2187, 495, twistMove, sliceMove, 18, 0, SLICE_SOLVED); },
+                () => { if (!pruneFlipSlice) pruneFlipSlice = bfsPrune(2048, 495, flipMove, sliceMove, 18, 0, SLICE_SOLVED); },
+                () => { if (!pruneCpSle) pruneCpSle = bfsPrune(40320, 24, cpMove, sleMove, 10, 0, 0); },
+                () => { if (!pruneUdeSle) pruneUdeSle = bfsPrune(40320, 24, udeMove, sleMove, 10, 0, 0); }
+            ];
 
+            function buildTables() {
+                if (tablesReady) return;
+                tableBuilders.forEach(build => build());
                 tablesReady = true;
             }
 
@@ -1571,101 +1578,14 @@
                 if (buildPromise) return buildPromise;
 
                 buildPromise = new Promise(resolve => {
-                    const tasks = [
-                        () => {
-                            if (!twistMove) {
-                                twistMove = new Uint16Array(2187 * 18);
-                                for (let t = 0; t < 2187; t++) {
-                                    const co = setTwist(t);
-                                    for (let m = 0; m < 18; m++) {
-                                        const mv = moves18[m]; const nco = new Array(8);
-                                        for (let i = 0; i < 8; i++) nco[i] = (co[mv.cp[i]] + mv.co[i]) % 3;
-                                        twistMove[t * 18 + m] = getTwist(nco);
-                                    }
-                                }
-                            }
-                        },
-                        () => {
-                            if (!flipMove) {
-                                flipMove = new Uint16Array(2048 * 18);
-                                for (let t = 0; t < 2048; t++) {
-                                    const eo = setFlip(t);
-                                    for (let m = 0; m < 18; m++) {
-                                        const mv = moves18[m]; const neo = new Array(12);
-                                        for (let i = 0; i < 12; i++) neo[i] = (eo[mv.ep[i]] + mv.eo[i]) % 2;
-                                        flipMove[t * 18 + m] = getFlip(neo);
-                                    }
-                                }
-                            }
-                        },
-                        () => {
-                            if (!sliceMove) {
-                                sliceMove = new Uint16Array(495 * 18);
-                                for (let c = 0; c < 495; c++) {
-                                    const ep = setSliceEp(c);
-                                    for (let m = 0; m < 18; m++) {
-                                        const mv = moves18[m]; const nep = new Array(12);
-                                        for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
-                                        sliceMove[c * 18 + m] = getSlice(nep);
-                                    }
-                                }
-                            }
-                        },
-                        () => {
-                            if (!cpMove) {
-                                cpMove = new Uint16Array(40320 * 10);
-                                for (let idx = 0; idx < 40320; idx++) {
-                                    const cp = permUnrank(idx, 8);
-                                    for (let k = 0; k < 10; k++) {
-                                        const mv = moves18[phase2Moves[k]]; const ncp = new Array(8);
-                                        for (let i = 0; i < 8; i++) ncp[i] = cp[mv.cp[i]];
-                                        cpMove[idx * 10 + k] = permRank(ncp);
-                                    }
-                                }
-                            }
-                        },
-                        () => {
-                            if (!udeMove) {
-                                udeMove = new Uint16Array(40320 * 10);
-                                for (let idx = 0; idx < 40320; idx++) {
-                                    const e8 = permUnrank(idx, 8);
-                                    const ep = e8.concat([8, 9, 10, 11]);
-                                    for (let k = 0; k < 10; k++) {
-                                        const mv = moves18[phase2Moves[k]]; const nep = new Array(12);
-                                        for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
-                                        udeMove[idx * 10 + k] = permRank(nep.slice(0, 8));
-                                    }
-                                }
-                            }
-                        },
-                        () => {
-                            if (!sleMove) {
-                                sleMove = new Uint8Array(24 * 10);
-                                for (let idx = 0; idx < 24; idx++) {
-                                    const s4 = permUnrank(idx, 4).map(x => x + 8);
-                                    const ep = [0, 1, 2, 3, 4, 5, 6, 7].concat(s4);
-                                    for (let k = 0; k < 10; k++) {
-                                        const mv = moves18[phase2Moves[k]]; const nep = new Array(12);
-                                        for (let i = 0; i < 12; i++) nep[i] = ep[mv.ep[i]];
-                                        sleMove[idx * 10 + k] = permRank(nep.slice(8, 12).map(x => x - 8));
-                                    }
-                                }
-                            }
-                        },
-                        () => { if (!pruneTwistSlice) pruneTwistSlice = bfsPrune(2187, 495, twistMove, sliceMove, 18, 0, SLICE_SOLVED); },
-                        () => { if (!pruneFlipSlice) pruneFlipSlice = bfsPrune(2048, 495, flipMove, sliceMove, 18, 0, SLICE_SOLVED); },
-                        () => { if (!pruneCpSle) pruneCpSle = bfsPrune(40320, 24, cpMove, sleMove, 10, 0, 0); },
-                        () => { if (!pruneUdeSle) pruneUdeSle = bfsPrune(40320, 24, udeMove, sleMove, 10, 0, 0); }
-                    ];
-
                     let i = 0;
                     function step() {
                         if (tablesReady) {
                             resolve();
                             return;
                         }
-                        if (i < tasks.length) {
-                            tasks[i]();
+                        if (i < tableBuilders.length) {
+                            tableBuilders[i]();
                             i++;
                             setTimeout(step, 10);
                         } else {
@@ -1966,6 +1886,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.autoClear = false;
+            renderer.domElement.style.touchAction = 'none';
             document.body.appendChild(renderer.domElement);
 
             viewLeft.camera = new THREE.PerspectiveCamera(45, (window.innerWidth / 2) / window.innerHeight, 0.1, 1000);
@@ -2005,31 +1926,50 @@
             const hamburgerMenu = document.getElementById('hamburger-menu');
             const modal = document.getElementById('help-modal');
 
+            function closeMenu() {
+                hamburgerMenu.style.display = 'none';
+                menuBtn.classList.remove('active');
+                menuBtn.setAttribute('aria-expanded', 'false');
+            }
+
+            function closeHelpModal() {
+                modal.style.display = 'none';
+            }
+
             menuBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const isShowing = hamburgerMenu.style.display === 'flex';
                 hamburgerMenu.style.display = isShowing ? 'none' : 'flex';
                 menuBtn.classList.toggle('active', !isShowing);
+                menuBtn.setAttribute('aria-expanded', String(!isShowing));
             });
 
             window.addEventListener('click', (e) => {
                 if (hamburgerMenu.style.display === 'flex' && !hamburgerMenu.contains(e.target) && e.target !== menuBtn) {
-                    hamburgerMenu.style.display = 'none';
-                    menuBtn.classList.remove('active');
+                    closeMenu();
                 }
                 if (e.target === modal) {
-                    modal.style.display = 'none';
+                    closeHelpModal();
+                }
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key !== 'Escape') return;
+                if (modal.style.display === 'flex') {
+                    closeHelpModal();
+                } else if (hamburgerMenu.style.display === 'flex') {
+                    closeMenu();
+                    menuBtn.focus();
                 }
             });
 
             document.getElementById('show-help-btn').addEventListener('click', (e) => {
                 e.stopPropagation();
                 modal.style.display = 'flex';
-                hamburgerMenu.style.display = 'none';
-                menuBtn.classList.remove('active');
+                closeMenu();
             });
 
-            document.getElementById('close-help').addEventListener('click', () => modal.style.display = 'none');
+            document.getElementById('close-help').addEventListener('click', closeHelpModal);
 
             renderer.domElement.addEventListener('pointerdown', onPointerDown);
             renderer.domElement.addEventListener('pointermove', onPointerMove);
