@@ -224,6 +224,19 @@
     </style>
 </head>
 <body>
+    <noscript>This app requires JavaScript and WebGL to run. Please enable JavaScript and use a browser that supports WebGL.</noscript>
+    <div id="fatal-error" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff; background:#3a1a1a; border:1px solid #822; padding:20px 24px; border-radius:8px; max-width:420px; text-align:center; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; z-index:1000;"></div>
+    <script>
+        window.__cubesolReady = false;
+        window.addEventListener('error', function () {
+            if (window.__cubesolReady) return;
+            var el = document.getElementById('fatal-error');
+            if (el) {
+                el.textContent = 'Failed to load required resources (3D library). Please check your network connection and reload the page.';
+                el.style.display = 'block';
+            }
+        });
+    </script>
     <div id="info">
         <h2>3D Rubik's Cube Simulator</h2>
         <p>Drag Cubies: Rotate Layer | Drag Background: Rotate Camera</p>
@@ -1826,6 +1839,7 @@
         ];
 
         let scene, renderer;
+        let moveListEl;
         let viewLeft = { camera: null, controls: null, left: 0, bottom: 0, width: 0.5, height: 1.0 };
         let viewRight = { camera: null, controls: null, left: 0.5, bottom: 0, width: 0.5, height: 1.0 };
         let isDualView = window.innerWidth > 768;
@@ -1885,12 +1899,13 @@
         }
 
         function stopSolving() {
-            if (solverQueue.length > 0) {
+            if (solverQueue.length > 0 || animationQueue.length > 0) {
                 solverQueue = [];
+                animationQueue = [];
                 totalSolveMoves = 0;
                 totalSolveTurns = 0;
                 completedSolveTurns = 0;
-                document.getElementById('move-list').innerText = "Stopped (Manual control enabled)";
+                moveListEl.innerText = "Stopped (Manual control enabled)";
             }
         }
 
@@ -1942,6 +1957,7 @@
         let lastSolveLog = null;
 
         function init() {
+            moveListEl = document.getElementById('move-list');
             TwoPhase.buildTablesAsync();
             createRoundedSquareTexture();
             scene = new THREE.Scene();
@@ -2021,6 +2037,7 @@
 
             updateViewLayout();
             animate();
+            window.__cubesolReady = true;
         }
 
         function resetCameraView() {
@@ -2117,7 +2134,7 @@
             targetRotation[axis] = (Math.PI / 2) * direction;
 
             if (name) {
-                document.getElementById('move-list').innerText = name;
+                moveListEl.innerText = name;
             }
 
             new TWEEN.Tween(pivot.rotation)
@@ -2134,11 +2151,11 @@
                 .start();
         }
 
+        const _layerScratchPos = new THREE.Vector3();
         function getCubiesInLayer(axis, layer) {
             return cubies.filter(c => {
-                const pos = new THREE.Vector3();
-                c.getWorldPosition(pos);
-                return Math.round(pos[axis]) === layer;
+                c.getWorldPosition(_layerScratchPos);
+                return Math.round(_layerScratchPos[axis]) === layer;
             });
         }
 
@@ -2187,6 +2204,7 @@
         }
 
         function scramble() {
+            if (isAnimating || solverQueue.length > 0) return;
             solverQueue = [];
             manualMoveHistory = [];
             totalSolveMoves = 0;
@@ -2213,7 +2231,7 @@
                 lastScrambleDisplayMoves.push(moveName);
                 rotateLayer(move.axis, move.layer, direction, false, moveName);
             }
-            document.getElementById('move-list').innerText = "Scrambled!";
+            moveListEl.innerText = "Scrambled!";
         }
 
         function getSolverSequence() {
@@ -2272,7 +2290,14 @@ function getMoveNameFromRotation(base, direction) {
         function saveLastSolveResult() {
             if (!lastSolveLog) {
                 const saved = localStorage.getItem('cubesol.lastSolveLog');
-                if (saved) lastSolveLog = JSON.parse(saved);
+                if (saved) {
+                    try {
+                        lastSolveLog = JSON.parse(saved);
+                    } catch (e) {
+                        console.warn('Could not parse saved solve log, clearing it:', e);
+                        localStorage.removeItem('cubesol.lastSolveLog');
+                    }
+                }
             }
             if (!lastSolveLog) {
                 alert('No Solve All result has been recorded yet.');
@@ -2294,19 +2319,19 @@ function getMoveNameFromRotation(base, direction) {
         function solveAll() {
             if (isAnimating) return;
             manualMoveHistory = [];
-            document.getElementById('move-list').innerText = "[Solve All] Calculating optimal solution...";
+            moveListEl.innerText = "[Solve All] Calculating optimal solution...";
             // 무거운 계산(첫 호출 시 테이블 생성 포함)이 UI 페인트를 막지 않도록 한 틱 뒤 실행
             setTimeout(() => {
                 solverQueue = getOptimalSequence();
                 if (solverQueue.length === 0) {
-                    document.getElementById('move-list').innerText = "Solved (or Cube already solved)";
+                    moveListEl.innerText = "Solved (or Cube already solved)";
                 } else {
                     totalSolveMoves = solverQueue.length;
                     totalSolveTurns = solverQueue.reduce((sum, move) => sum + (move.includes("2") ? 2 : 1), 0);
                     completedSolveTurns = 0;
                     lastSolveLog = createSolveLog(solverQueue, 'Kociemba');
                     persistLastSolveLog();
-                    document.getElementById('move-list').innerText = `[Kociemba] Executing ${totalSolveMoves} moves...`;
+                    moveListEl.innerText = `[Kociemba] Executing ${totalSolveMoves} moves...`;
                     processQueue();
                 }
             }, 30);
@@ -2322,10 +2347,10 @@ function getMoveNameFromRotation(base, direction) {
                 totalSolveMoves = 0;
                 totalSolveTurns = 0;
                 completedSolveTurns = 0;
-                document.getElementById('move-list').innerText = `[LBL] Remaining: ${moves.length} moves`;
+                moveListEl.innerText = `[LBL] Remaining: ${moves.length} moves`;
                 processQueue();
             } else {
-                document.getElementById('move-list').innerText = "Already solved";
+                moveListEl.innerText = "Already solved";
             }
         }
 
@@ -2334,7 +2359,7 @@ function getMoveNameFromRotation(base, direction) {
             manualMoveHistory = [];
             solverQueue = getSolverSequence();
             if (solverQueue.length === 0) {
-                document.getElementById('move-list').innerText = "Already solved";
+                moveListEl.innerText = "Already solved";
             } else {
                 totalSolveMoves = solverQueue.length;
                 totalSolveTurns = solverQueue.reduce((sum, move) => sum + (move.includes("2") ? 2 : 1), 0);
@@ -2342,7 +2367,7 @@ function getMoveNameFromRotation(base, direction) {
                 lastSolveLog = createSolveLog(solverQueue, 'LBL');
                 persistLastSolveLog();
                 stepLabel = 'LBL';
-                document.getElementById('move-list').innerText = `[LBL] Executing ${totalSolveMoves} moves...`;
+                moveListEl.innerText = `[LBL] Executing ${totalSolveMoves} moves...`;
                 processQueue();
             }
         }
@@ -2350,7 +2375,7 @@ function getMoveNameFromRotation(base, direction) {
         function solve1StepKociemba() {
             if (isAnimating) return;
             manualMoveHistory = [];
-            document.getElementById('move-list').innerText = "[Kociemba] Calculating...";
+            moveListEl.innerText = "[Kociemba] Calculating...";
             setTimeout(() => {
                 const moves = getOptimalSequence();
                 if (moves.length > 0) {
@@ -2359,10 +2384,10 @@ function getMoveNameFromRotation(base, direction) {
                     totalSolveMoves = 0;
                     totalSolveTurns = 0;
                     completedSolveTurns = 0;
-                    document.getElementById('move-list').innerText = `[Kociemba] Remaining: ${moves.length} moves`;
+                    moveListEl.innerText = `[Kociemba] Remaining: ${moves.length} moves`;
                     processQueue();
                 } else {
-                    document.getElementById('move-list').innerText = "Already solved";
+                    moveListEl.innerText = "Already solved";
                 }
             }, 30);
         }
@@ -2554,7 +2579,20 @@ function getMoveNameFromRotation(base, direction) {
                 renderView(viewRight);
             }
         }
-        init();
+        function showFatalError(message) {
+            const el = document.getElementById('fatal-error');
+            if (el) {
+                el.textContent = message;
+                el.style.display = 'block';
+            }
+        }
+
+        try {
+            init();
+        } catch (e) {
+            console.error('Failed to initialize the cube simulator:', e);
+            showFatalError('Unable to start the 3D renderer. Your browser or device may not support WebGL.');
+        }
     </script>
 </body>
 </html>
