@@ -1014,13 +1014,15 @@
             }
 
             _initSavedStateBuffer() {
-                if (!this._savedStateBuffer) {
-                    this._savedStateBuffer = Array.from({ length: 54 }, () => ({
+                if (!this._savedStateBuffer || this._savedStateBuffer.length < this.stickers.length) {
+                    this._savedStateBuffer = Array.from({ length: this.stickers.length }, () => ({
                         pos: new THREE.Vector3(),
                         norm: new THREE.Vector3(),
                         color: 0
                     }));
-                    this._savedCubieBuffer = Array.from({ length: 27 }, () => ({
+                }
+                if (!this._savedCubieBuffer || this._savedCubieBuffer.length < this.cubies.length) {
+                    this._savedCubieBuffer = Array.from({ length: this.cubies.length }, () => ({
                         position: new THREE.Vector3(),
                         quaternion: new THREE.Quaternion()
                     }));
@@ -1811,7 +1813,7 @@
         }
 
         function undo() {
-            if (isAnimating || solverQueue.length > 0 || manualMoveHistory.length === 0) return;
+            if (isControlBusy() || manualMoveHistory.length === 0) return;
             const lastMove = manualMoveHistory.pop();
             const invDir = -lastMove.direction;
             const invName = getInverseMoveName(lastMove.name);
@@ -1819,13 +1821,16 @@
         }
 
         function stopSolving() {
-            if (solverQueue.length > 0 || animationQueue.length > 0) {
+            const hadWork = isSolvePending || isAnimating || solverQueue.length > 0 || animationQueue.length > 0;
+            if (hadWork) {
+                stopAfterCurrentMove = isAnimating;
+                cancelPendingSolve();
                 solverQueue = [];
                 animationQueue = [];
                 totalSolveMoves = 0;
                 totalSolveTurns = 0;
                 completedSolveTurns = 0;
-                moveListEl.innerText = "Stopped (Manual control enabled)";
+                moveListEl.innerText = isAnimating ? "Stopping after current move..." : "Stopped (Manual control enabled)";
             }
         }
 
@@ -1871,10 +1876,45 @@
         let totalSolveMoves = 0;
         let totalSolveTurns = 0;
         let completedSolveTurns = 0;
+        let solveRequestId = 0;
+        let isSolvePending = false;
+        let stopAfterCurrentMove = false;
         let stepLabel = 'Hint'; // processQueue가 step 모드일 때 사용할 레이블
         let lastScrambleMoves = [];
         let lastScrambleDisplayMoves = [];
         let lastSolveLog = null;
+
+        function isControlBusy() {
+            return isSolvePending || isAnimating || solverQueue.length > 0 || animationQueue.length > 0;
+        }
+
+        function cancelPendingSolve() {
+            solveRequestId++;
+            isSolvePending = false;
+        }
+
+        function scheduleSolve(statusText, calculate, onReady) {
+            if (isControlBusy()) return;
+
+            const requestId = ++solveRequestId;
+            isSolvePending = true;
+            moveListEl.innerText = statusText;
+
+            setTimeout(() => {
+                if (requestId !== solveRequestId) return;
+                try {
+                    const moves = calculate();
+                    if (requestId !== solveRequestId) return;
+                    isSolvePending = false;
+                    onReady(moves);
+                } catch (e) {
+                    if (requestId !== solveRequestId) return;
+                    isSolvePending = false;
+                    console.error('Solver calculation failed:', e);
+                    moveListEl.innerText = "Solver calculation failed";
+                }
+            }, 30);
+        }
 
         function init() {
             moveListEl = document.getElementById('move-list');
@@ -2140,11 +2180,15 @@
                 totalSolveMoves = 0;
                 totalSolveTurns = 0;
                 completedSolveTurns = 0;
+                if (stopAfterCurrentMove) {
+                    stopAfterCurrentMove = false;
+                    moveListEl.innerText = "Stopped (Manual control enabled)";
+                }
             }
         }
 
         function scramble() {
-            if (isAnimating || solverQueue.length > 0) return;
+            if (isControlBusy()) return;
             solverQueue = [];
             manualMoveHistory = [];
             totalSolveMoves = 0;
@@ -2201,15 +2245,18 @@
             }
         }
 
-function getMoveNameFromRotation(base, direction) {
-            const nonPrimeDirection = (base === 'U' || base === 'R' || base === 'F') ? -1 : 1;
+        function getMoveNameFromRotation(base, direction) {
+            const nonPrimeDirection = (base === 'U' || base === 'R' || base === 'F' || base === 'S') ? -1 : 1;
             return base + (direction === nonPrimeDirection ? '' : "'");
         }
 
         function createSolveLog(moves, solverName) {
+            const startState = new CubeSolver(cubies);
+            startState.captureState();
             return {
                 timestamp: new Date().toISOString(),
                 scramble: lastScrambleMoves.slice(),
+                startFacelets: TwoPhase.extractFacelets(startState),
                 solution: {
                     solver: solverName,
                     moves: moves.slice(),
@@ -2257,12 +2304,10 @@ function getMoveNameFromRotation(base, direction) {
         }
 
         function solveAll() {
-            if (isAnimating) return;
+            if (isControlBusy()) return;
             manualMoveHistory = [];
-            moveListEl.innerText = "[Solve All] Calculating optimal solution...";
-            // 무거운 계산(첫 호출 시 테이블 생성 포함)이 UI 페인트를 막지 않도록 한 틱 뒤 실행
-            setTimeout(() => {
-                solverQueue = getOptimalSequence();
+            scheduleSolve("[Solve All] Calculating optimal solution...", getOptimalSequence, (moves) => {
+                solverQueue = moves;
                 if (solverQueue.length === 0) {
                     moveListEl.innerText = "Solved (or Cube already solved)";
                 } else {
@@ -2274,11 +2319,11 @@ function getMoveNameFromRotation(base, direction) {
                     moveListEl.innerText = `[Kociemba] Executing ${totalSolveMoves} moves...`;
                     processQueue();
                 }
-            }, 30);
+            });
         }
 
         function solve2StepLBL() {
-            if (isAnimating) return;
+            if (isControlBusy()) return;
             manualMoveHistory = [];
             const moves = getSolverSequence();
             if (moves.length > 0) {
@@ -2295,7 +2340,7 @@ function getMoveNameFromRotation(base, direction) {
         }
 
         function solveAllLBL() {
-            if (isAnimating) return;
+            if (isControlBusy()) return;
             manualMoveHistory = [];
             solverQueue = getSolverSequence();
             if (solverQueue.length === 0) {
@@ -2313,11 +2358,9 @@ function getMoveNameFromRotation(base, direction) {
         }
 
         function solve1StepKociemba() {
-            if (isAnimating) return;
+            if (isControlBusy()) return;
             manualMoveHistory = [];
-            moveListEl.innerText = "[Kociemba] Calculating...";
-            setTimeout(() => {
-                const moves = getOptimalSequence();
+            scheduleSolve("[Kociemba] Calculating...", getOptimalSequence, (moves) => {
                 if (moves.length > 0) {
                     stepLabel = 'Kociemba';
                     solverQueue = [moves[0]];
@@ -2329,12 +2372,12 @@ function getMoveNameFromRotation(base, direction) {
                 } else {
                     moveListEl.innerText = "Already solved";
                 }
-            }, 30);
+            });
         }
 
         // --- Interaction Logic ---
         function onPointerDown(event) {
-            if (isAnimating || solverQueue.length > 0) return;
+            if (isControlBusy()) return;
             const rect = renderer.domElement.getBoundingClientRect();
             const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
             const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -2459,7 +2502,7 @@ function getMoveNameFromRotation(base, direction) {
                 } else {
                     moveName = MOVES.find(m => m.axis === bestMove.axis && m.layer === bestMove.layer)?.name || "";
                 }
-                const displayName = moveName ? (moveName + (bestMove.dir === -1 ? "'" : "")) : "";
+                const displayName = moveName ? getMoveNameFromRotation(moveName, bestMove.dir) : "";
                 manualMoveHistory.push({
                     axis: bestMove.axis,
                     layer: bestMove.layer,

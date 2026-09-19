@@ -72,6 +72,7 @@ Saves scramble and solution metadata:
 {
   "timestamp": "2026-06-07T06:44:54.356Z",
   "scramble": ["L'", "B", "R'", "F'", "..."],
+  "startFacelets": "RRUFUBDRRFDBRRDBRRRUUFFFDDDLLLBDFLLFULBULUFLFLBBDBBDUU",
   "solution": {
     "solver": "Kociemba",
     "moves": ["L", "U", "F'", "D'", "..."],
@@ -79,6 +80,7 @@ Saves scramble and solution metadata:
   }
 }
 ```
+`startFacelets` records the exact pre-solve state in standard URFDLB order, including any manual moves made after scrambling.
 ![Screen](CubeSol.png "CubeSol Screen")
 ***
 
@@ -156,6 +158,7 @@ Saves scramble and solution metadata:
 {
   "timestamp": "2026-06-07T06:44:54.356Z",
   "scramble": ["L'", "B", "R'", "F'", "..."],
+  "startFacelets": "RRUFUBDRRFDBRRDBRRRUUFFFDDDLLLBDFLLFULBULUFLFLBBDBBDUU",
   "solution": {
     "solver": "Kociemba",
     "moves": ["L", "U", "F'", "D'", "..."],
@@ -163,3 +166,4 @@ Saves scramble and solution metadata:
   }
 }
 ```
+`startFacelets`는 scramble 이후 수동 회전까지 포함한 풀이 직전 상태를 표준 URFDLB 순서로 기록합니다.
