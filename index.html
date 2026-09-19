@@ -1899,6 +1899,7 @@
             updateViewLayout();
         }
 
+        let isResizingLayout = false;
         function updateViewLayout() {
             const toggleBtn = document.getElementById('toggle-view-btn');
             if (isDualView) {
@@ -1914,7 +1915,11 @@
                 viewRight.width = 0.0;
                 if (toggleBtn) toggleBtn.innerText = "Dual view";
             }
-            onWindowResize();
+            if (!isResizingLayout) {
+                isResizingLayout = true;
+                onWindowResize();
+                isResizingLayout = false;
+            }
         }
 
         let cubeGroup, pivot, cubies = [];
@@ -2028,22 +2033,37 @@
             viewRight.controls.update();
         }
 
+        let baseMaterials;
+
         function createCube() {
             cubeGroup = new THREE.Group();
             scene.add(cubeGroup);
             pivot = new THREE.Group();
             scene.add(pivot);
             const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
+
+            if (!baseMaterials) {
+                baseMaterials = {
+                    black: new THREE.MeshLambertMaterial({ color: COLORS.black }),
+                    blue: new THREE.MeshLambertMaterial({ color: COLORS.blue, map: roundedSquareTexture }),
+                    green: new THREE.MeshLambertMaterial({ color: COLORS.green, map: roundedSquareTexture }),
+                    white: new THREE.MeshLambertMaterial({ color: COLORS.white, map: roundedSquareTexture }),
+                    yellow: new THREE.MeshLambertMaterial({ color: COLORS.yellow, map: roundedSquareTexture }),
+                    red: new THREE.MeshLambertMaterial({ color: COLORS.red, map: roundedSquareTexture }),
+                    orange: new THREE.MeshLambertMaterial({ color: COLORS.orange, map: roundedSquareTexture })
+                };
+            }
+
             for (let x = -1; x <= 1; x++) {
                 for (let y = -1; y <= 1; y++) {
                     for (let z = -1; z <= 1; z++) {
                         const materials = [
-                            x === 1 ? new THREE.MeshLambertMaterial({ color: COLORS.blue, map: roundedSquareTexture }) : new THREE.MeshLambertMaterial({ color: COLORS.black }),
-                            x === -1 ? new THREE.MeshLambertMaterial({ color: COLORS.green, map: roundedSquareTexture }) : new THREE.MeshLambertMaterial({ color: COLORS.black }),
-                            y === 1 ? new THREE.MeshLambertMaterial({ color: COLORS.white, map: roundedSquareTexture }) : new THREE.MeshLambertMaterial({ color: COLORS.black }),
-                            y === -1 ? new THREE.MeshLambertMaterial({ color: COLORS.yellow, map: roundedSquareTexture }) : new THREE.MeshLambertMaterial({ color: COLORS.black }),
-                            z === 1 ? new THREE.MeshLambertMaterial({ color: COLORS.red, map: roundedSquareTexture }) : new THREE.MeshLambertMaterial({ color: COLORS.black }),
-                            z === -1 ? new THREE.MeshLambertMaterial({ color: COLORS.orange, map: roundedSquareTexture }) : new THREE.MeshLambertMaterial({ color: COLORS.black })
+                            x === 1 ? baseMaterials.blue : baseMaterials.black,
+                            x === -1 ? baseMaterials.green : baseMaterials.black,
+                            y === 1 ? baseMaterials.white : baseMaterials.black,
+                            y === -1 ? baseMaterials.yellow : baseMaterials.black,
+                            z === 1 ? baseMaterials.red : baseMaterials.black,
+                            z === -1 ? baseMaterials.orange : baseMaterials.black
                         ];
                         const cubie = new THREE.Mesh(geometry, materials);
                         cubie.position.set(x, y, z);
@@ -2174,8 +2194,19 @@
             completedSolveTurns = 0;
             lastScrambleMoves = [];
             lastScrambleDisplayMoves = [];
+
+            let lastAxis = null;
+            let lastLayer = null;
+
             for (let i = 0; i < 20; i++) {
-                const move = MOVES[Math.floor(Math.random() * MOVES.length)];
+                let move;
+                do {
+                    move = MOVES[Math.floor(Math.random() * MOVES.length)];
+                } while (move.axis === lastAxis && move.layer === lastLayer);
+
+                lastAxis = move.axis;
+                lastLayer = move.layer;
+
                 const direction = Math.random() > 0.5 ? 1 : -1;
                 const moveName = getMoveNameFromRotation(move.name, direction);
                 lastScrambleMoves.push(moveName);
@@ -2251,7 +2282,7 @@ function getMoveNameFromRotation(base, direction) {
             const blob = new Blob([JSON.stringify(lastSolveLog, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            const stamp = (lastSolveLog.createdAt || new Date().toISOString()).replace(/[:.]/g, '-');
+            const stamp = (lastSolveLog.timestamp || new Date().toISOString()).replace(/[:.]/g, '-');
             a.href = url;
             a.download = `cubesol_last_solve_${stamp}.json`;
             document.body.appendChild(a);
@@ -2470,6 +2501,9 @@ function getMoveNameFromRotation(base, direction) {
                     direction: bestMove.dir,
                     name: displayName
                 });
+                if (manualMoveHistory.length > 200) {
+                    manualMoveHistory.shift();
+                }
                 rotateLayer(bestMove.axis, bestMove.layer, bestMove.dir, true, displayName);
             }
         }
@@ -2480,6 +2514,11 @@ function getMoveNameFromRotation(base, direction) {
         }
 
         function onWindowResize() {
+            if (window.innerWidth <= 768 && isDualView) {
+                isDualView = false;
+                updateViewLayout();
+                return;
+            }
             renderer.setSize(window.innerWidth, window.innerHeight);
             if (isDualView) {
                 viewLeft.camera.aspect = (window.innerWidth / 2) / window.innerHeight;
